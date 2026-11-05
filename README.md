@@ -14,12 +14,10 @@ Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra),
 
 ## Instalación
 
-1. Instala una extensión de userscripts: [Tampermonkey](https://www.tampermonkey.net/) o [Violentmonkey](https://violentmonkey.github.io/).
+1. Instala la extensión [Violentmonkey](https://violentmonkey.github.io/) en tu navegador.
 2. Haz clic en uno de los botones para instalar o actualizar:
 
-   [![Instalar en Tampermonkey](https://img.shields.io/badge/Instalar_en_Tampermonkey-Moodle_Toolkit-00485B?style=for-the-badge&logo=tampermonkey)](https://raw.githubusercontent.com/danielrozocom/moodle-toolkit/main/moodle-toolkit.user.js)
    [![Instalar en Violentmonkey](https://img.shields.io/badge/Instalar_en_Violentmonkey-Moodle_Toolkit-1f6feb?style=for-the-badge&logo=violentmonkey)](https://raw.githubusercontent.com/danielrozocom/moodle-toolkit/main/moodle-toolkit.user.js)
-   [![Actualizar ahora](https://img.shields.io/badge/Actualizar_ahora-Moodle_Toolkit-1e293b?style=for-the-badge&logo=github)](https://raw.githubusercontent.com/danielrozocom/moodle-toolkit/main/moodle-toolkit.user.js)
 
    o abre el enlace directo: 👉 [Instalar Moodle Toolkit](https://raw.githubusercontent.com/danielrozocom/moodle-toolkit/main/moodle-toolkit.user.js)
 

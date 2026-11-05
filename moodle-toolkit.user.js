@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM)
 // @namespace   http://tampermonkey.net/
-// @version     5.5.1
+// @version     5.5.2
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra).
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
@@ -305,11 +305,10 @@
                 const isLessonPage = currentUrl.includes('/mod/lesson/view.php') &&
                     document.querySelector('form[action*="mod/lesson/continue.php"] button, form[action*="mod/lesson/continue.php"] input[type="submit"]') !== null;
 
-                const needsTimer = !isMoodleQuiz && !isActivityCompleted && (
-                    lowerBodyText.includes('minuto') ||
-                    lowerBodyText.includes('dedicar al menos') ||
-                    document.querySelector('video, audio, iframe[src*="genially"], iframe[src*="youtube"], iframe[src*="vimeo"], iframe[src*="player"]') !== null
-                );
+                const timerRegex = /(?:dedicar al menos|established in|at least|minimum of|establecido en|menos|mínimo de)\s+(\d+)\s+(?:minutes|minutos)/i;
+                const hasExplicitTimeRequirement = timerRegex.test(fullBodyText);
+
+                const needsTimer = !isMoodleQuiz && !isActivityCompleted && hasExplicitTimeRequirement;
 
                 return { needsTimer, hasScorm, hasSurveys, isLessonPage };
             }

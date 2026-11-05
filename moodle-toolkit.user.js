@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM)
 // @namespace   http://tampermonkey.net/
-// @version     5.5.2
+// @version     5.6
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra).
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
@@ -116,7 +116,7 @@
                 if (timerButton) {
                     timerButton.classList.add('tk-btn-secondary');
                     timerButton.classList.remove('tk-btn-primary');
-                    timerButton.innerText = '⏱️ Temporizador en Curso...';
+                    timerButton.innerHTML = `${UiModule.Icons.loader} Temporizador en Curso...`;
                     timerButton.disabled = true;
                 }
 
@@ -150,7 +150,7 @@
                         if (timerButton) {
                             timerButton.classList.remove('tk-btn-secondary');
                             timerButton.classList.add('tk-btn-primary');
-                            timerButton.innerText = '⏱️ Iniciar Temporizador';
+                            timerButton.innerHTML = `${UiModule.Icons.clock} Iniciar Temporizador`;
                             timerButton.disabled = false;
                         }
                         if (timerDisplay) timerDisplay.style.display = 'none';
@@ -317,16 +317,27 @@
         const UiModule = {
             panelId: 'moodle-toolkit-panel',
 
+            Icons: {
+                settings: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+                zap: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+                loader: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>',
+                stop: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>',
+                clock: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+                rocket: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>',
+                x: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
+            },
+
             injectStyles() {
                 if (document.getElementById('moodle-toolkit-styles')) return;
                 const style = document.createElement('style');
                 style.id = 'moodle-toolkit-styles';
                 style.textContent = `
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
                     #moodle-toolkit-panel {
                         position: fixed; top: 16px; right: 16px; z-index: 999999;
                         width: 264px; background: #ffffff; color: #0f172a;
                         border: 1px solid #e2e8f0; border-radius: 12px;
-                        padding: 16px; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                        padding: 16px; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                         font-size: 13px; line-height: 1.5;
                         box-shadow: 0 10px 15px -3px rgba(0,0,0,0.10), 0 4px 6px -4px rgba(0,0,0,0.10);
                     }
@@ -399,28 +410,28 @@
 
                 let html = `
                     <div class="tk-header">
-                        <span class="tk-title">⚙️ Moodle Toolkit</span>
-                        <button class="tk-close" id="close-toolkit-panel" aria-label="Cerrar">✕</button>
+                        <span class="tk-title">${this.Icons.settings} Moodle Toolkit</span>
+                        <button class="tk-close" id="close-toolkit-panel" aria-label="Cerrar">${this.Icons.x}</button>
                     </div>
                     <div class="tk-body">`;
 
                 if (flags.isLessonPage) {
                     html += `
                         <button id="btn-tk-autosafe" class="tk-btn ${isAutoRunning ? 'tk-btn-secondary' : 'tk-btn-primary'}" ${isAutoRunning ? 'disabled' : ''}>
-                            ${isAutoRunning ? '⏳ Avanzando Solo...' : '⚡ Auto-Avanzar (Lección)'}
+                            ${isAutoRunning ? `${this.Icons.loader} Avanzando Solo...` : `${this.Icons.zap} Auto-Avanzar (Lección)`}
                         </button>
-                        <button id="btn-tk-stop" class="tk-btn tk-btn-destructive">🛑 Detener Avance</button>`;
+                        <button id="btn-tk-stop" class="tk-btn tk-btn-destructive">${this.Icons.stop} Detener Avance</button>`;
                 }
 
                 if (flags.needsTimer) {
                     html += `
-                        <button id="btn-tk-timer" class="tk-btn tk-btn-primary">⏱️ Iniciar Temporizador</button>
-                        <div id="toolkit-timer-display" class="tk-timer">⏳ Restante: <span id="toolkit-timer-text">00:00</span></div>`;
+                        <button id="btn-tk-timer" class="tk-btn tk-btn-primary">${this.Icons.clock} Iniciar Temporizador</button>
+                        <div id="toolkit-timer-display" class="tk-timer">${this.Icons.clock} Restante: <span id="toolkit-timer-text">00:00</span></div>`;
                 }
 
                 if (flags.hasScorm) {
                     html += `
-                        <button id="btn-tk-scorm" class="tk-btn tk-btn-primary">🚀 Completar SCORM</button>`;
+                        <button id="btn-tk-scorm" class="tk-btn tk-btn-primary">${this.Icons.rocket} Completar SCORM</button>`;
                 }
 
                 if (flags.hasSurveys) {
@@ -454,7 +465,7 @@
                         AutoAdvanceModule.start();
                         autoSafeBtn.classList.remove('tk-btn-primary');
                         autoSafeBtn.classList.add('tk-btn-secondary');
-                        autoSafeBtn.innerText = '⏳ Avanzando Solo...';
+                        autoSafeBtn.innerHTML = `${UiModule.Icons.loader} Avanzando Solo...`;
                         autoSafeBtn.disabled = true;
                     };
                 }

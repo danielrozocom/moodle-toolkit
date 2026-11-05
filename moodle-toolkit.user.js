@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM)
 // @namespace   http://tampermonkey.net/
-// @version     5.5
+// @version     5.5.1
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra).
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
-// @icon        https://moodle.org/theme/moodleorg/pix/favicons/favicon-180.webp
+// @icon        https://moodle.org/favicon.ico
 // @match       https://virtual.unipiloto.edu.co/*
 // @match       https://tierra.unipiloto.edu.co/*
 // @grant       none

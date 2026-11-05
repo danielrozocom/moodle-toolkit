@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM)
 // @namespace   http://tampermonkey.net/
-// @version     5.4
+// @version     5.5
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra).
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
-// @icon        data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgiIGhlaWdodD0iMTI4IiB2aWV3Qm94PSIwIDAgMTI4IDEyOCI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjEiIHkyPSIxIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzFlMjkzYiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMwZjE3MmEiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgogIDxyZWN0IHdpZHRoPSIxMjgiIGhlaWdodD0iMTI4IiByeD0iMjgiIGZpbGw9InVybCgjZykiLz4KICA8ZyBmaWxsPSIjZmZmZmZmIj4KICAgIDxwYXRoIGQ9Ik02NCAzMCBMMTA0IDUwIEw2NCA3MCBMMjQgNTAgWiIvPgogICAgPHJlY3QgeD0iNDAiIHk9IjU2IiB3aWR0aD0iNDgiIGhlaWdodD0iNiIgcng9IjMiLz4KICAgIDxjaXJjbGUgY3g9IjY0IiBjeT0iODYiIHI9IjYiLz4KICAgIDxyZWN0IHg9IjYxIiB5PSI3MCIgd2lkdGg9IjYiIGhlaWdodD0iMTYiIHJ4PSIzIi8+CiAgPC9nPgogIDxnIGZpbGw9IiM5NGEzYjgiPgogICAgPHBhdGggZD0iTTk2IDg0IGw2IC02IGw0IDQgbC02IDYgbDIgOCBsLTQgNCBsLTIgLTggbC02IDYgbC00IC00IGw2IC02IHoiIG9wYWNpdHk9IjAuOSIvPgogIDwvZz4KPC9zdmc+
+// @icon        https://moodle.org/theme/moodleorg/pix/favicons/favicon-180.webp
 // @match       https://virtual.unipiloto.edu.co/*
 // @match       https://tierra.unipiloto.edu.co/*
 // @grant       none

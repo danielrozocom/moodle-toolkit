@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM)
 // @namespace   http://tampermonkey.net/
-// @version     5.6
+// @version     5.7
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra).
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
@@ -324,7 +324,8 @@
                 stop: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>',
                 clock: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
                 rocket: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>',
-                x: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
+                x: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+                minimize: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>'
             },
 
             injectStyles() {
@@ -390,6 +391,24 @@
                         border: 1px solid #bbf7d0;
                     }
                     #moodle-toolkit-panel .tk-timer span { font-variant-numeric: tabular-nums; }
+                    #moodle-toolkit-panel .tk-header-actions { display: flex; gap: 4px; }
+                    #moodle-toolkit-panel.tk-minimized .tk-body { display: none; }
+                    @media (prefers-color-scheme: dark) {
+                        #moodle-toolkit-panel { background: #0f172a; color: #f8fafc; border-color: #334155; box-shadow: 0 10px 15px -3px rgba(0,0,0,.4); }
+                        #moodle-toolkit-panel .tk-header { border-bottom-color: #334155; }
+                        #moodle-toolkit-panel .tk-title { color: #f8fafc; }
+                        #moodle-toolkit-panel .tk-close { color: #94a3b8; }
+                        #moodle-toolkit-panel .tk-close:hover { background: #1e293b; color: #f8fafc; }
+                        #moodle-toolkit-panel .tk-btn-primary { background: #f8fafc; color: #0f172a; }
+                        #moodle-toolkit-panel .tk-btn-primary:hover:not(:disabled) { background: #e2e8f0; }
+                        #moodle-toolkit-panel .tk-btn-secondary { background: #1e293b; color: #f8fafc; }
+                        #moodle-toolkit-panel .tk-btn-secondary:hover:not(:disabled) { background: #334155; }
+                        #moodle-toolkit-panel .tk-btn-outline { background: #0f172a; color: #f8fafc; border-color: #334155; }
+                        #moodle-toolkit-panel .tk-select { background: #0f172a; color: #f8fafc; border-color: #334155; }
+                        #moodle-toolkit-panel .tk-timer { background: #052e16; color: #86efac; border-color: #166534; }
+                        #moodle-toolkit-panel .tk-section { border-top-color: #334155; }
+                        #moodle-toolkit-panel .tk-label { color: #94a3b8; }
+                    }
                 `;
                 document.head.appendChild(style);
             },
@@ -411,7 +430,10 @@
                 let html = `
                     <div class="tk-header">
                         <span class="tk-title">${this.Icons.settings} Moodle Toolkit</span>
-                        <button class="tk-close" id="close-toolkit-panel" aria-label="Cerrar">${this.Icons.x}</button>
+                        <div class="tk-header-actions">
+                            <button class="tk-close" id="minimize-toolkit-panel" aria-label="Minimizar">${this.Icons.minimize || '–'}</button>
+                            <button class="tk-close" id="close-toolkit-panel" aria-label="Cerrar">${this.Icons.x}</button>
+                        </div>
                     </div>
                     <div class="tk-body">`;
 
@@ -453,6 +475,17 @@
 
                 html += `</div>`;
                 panel.innerHTML = html;
+                if (localStorage.getItem('moodle_toolkit_minimized') === 'true') {
+                    panel.classList.add('tk-minimized');
+                }
+                try {
+                    const savedPos = JSON.parse(localStorage.getItem('moodle_toolkit_pos') || 'null');
+                    if (savedPos && savedPos.left && savedPos.top) {
+                        panel.style.left = savedPos.left;
+                        panel.style.top = savedPos.top;
+                        panel.style.right = 'auto';
+                    }
+                } catch (e) { /* noop */ }
                 document.body.appendChild(panel);
 
                 this.bindEvents();
@@ -484,6 +517,43 @@
 
                 const closeBtn = document.getElementById('close-toolkit-panel');
                 if (closeBtn) closeBtn.onclick = () => document.getElementById(this.panelId)?.remove();
+
+                const panel = document.getElementById(this.panelId);
+                const header = panel?.querySelector('.tk-header');
+                if (panel && header) {
+                    let dragging = false;
+                    let offsetX = 0;
+                    let offsetY = 0;
+                    header.addEventListener('mousedown', (e) => {
+                        if (e.target.closest('button')) return;
+                        dragging = true;
+                        const rect = panel.getBoundingClientRect();
+                        offsetX = e.clientX - rect.left;
+                        offsetY = e.clientY - rect.top;
+                        panel.style.right = 'auto';
+                        e.preventDefault();
+                    });
+                    document.addEventListener('mousemove', (e) => {
+                        if (!dragging) return;
+                        panel.style.left = `${e.clientX - offsetX}px`;
+                        panel.style.top = `${e.clientY - offsetY}px`;
+                    });
+                    document.addEventListener('mouseup', () => {
+                        if (!dragging) return;
+                        dragging = false;
+                        localStorage.setItem('moodle_toolkit_pos', JSON.stringify({ left: panel.style.left, top: panel.style.top }));
+                    });
+                }
+
+                const minimizeBtn = document.getElementById('minimize-toolkit-panel');
+                if (minimizeBtn) {
+                    minimizeBtn.onclick = () => {
+                        const panel = document.getElementById(this.panelId);
+                        if (!panel) return;
+                        const minimized = panel.classList.toggle('tk-minimized');
+                        localStorage.setItem('moodle_toolkit_minimized', minimized ? 'true' : 'false');
+                    };
+                }
             }
         };
 

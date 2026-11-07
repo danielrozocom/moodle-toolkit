@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM)
 // @namespace   http://tampermonkey.net/
-// @version     5.7
+// @version     5.8
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra).
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
@@ -19,6 +19,58 @@
     if (window.top !== window.self && !window.location.href.includes('player.php') && !window.location.href.includes('bvsktess')) {
         return;
     }
+
+    // --- Guardia de sesión: redirige a login cuando no hay sesión o se cae en ?redirect=0 ---
+    const SessionGuard = {
+        loginUrl: 'https://virtual.unipiloto.edu.co/login/index.php',
+        isMoodle() { return window.location.hostname.includes('virtual.unipiloto.edu.co'); },
+        isLoginPage() { return window.location.pathname.includes('/login/index.php'); },
+        redirect() {
+            if (this.isLoginPage()) return;
+            try { window.location.replace(this.loginUrl); } catch (e) { window.location.href = this.loginUrl; }
+        },
+        hasRedirectZero() {
+            if (!this.isMoodle() || this.isLoginPage()) return false;
+            const path = window.location.pathname.replace(/\/+$/, '') || '/';
+            const qs = window.location.search;
+            return (path === '' || path === '/') && /[?&]redirect=0(?:&|$)/.test(qs);
+        },
+        isLoggedIn() {
+            // Indicadores de usuario autenticado en la página
+            return document.querySelector('.usermenu, #usernavigation, a[href*="/user/profile.php"], [data-userid], .usr-picture, .logininfo a[href*="logout"]') !== null;
+        },
+        checkSession() {
+            if (!this.isMoodle() || this.isLoginPage()) return false;
+            const bodyText = (document.body && document.body.innerText) ? document.body.innerText.toLowerCase() : '';
+            const noSessionMarkers = [
+                'no ha iniciado sesión', 'you are not logged in', 'not logged in',
+                'sesión expirada', 'session expired', 'session timed out', 'sesión ha expirado',
+                'debe iniciar sesión', 'you must be logged', 'login required',
+                'no está usted autenticado', 'not authenticated',
+                'usted no ha iniciado sesión'
+            ];
+            if (noSessionMarkers.some(m => bodyText.includes(m))) return true;
+            // Si estamos en redirect=0 y no hay menú de usuario (o hay enlace de login), no hay sesión
+            if (this.hasRedirectZero()) {
+                const hasLoginLink = /login/i.test(document.body?.innerText || '') &&
+                    (document.querySelector('a[href*="/login/"], button[data-action="login"]') !== null);
+                if (!this.isLoggedIn() || hasLoginLink) return true;
+            }
+            return false;
+        },
+        run() {
+            if (!this.isMoodle()) return;
+            const doCheck = () => {
+                if (this.checkSession()) this.redirect();
+            };
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                setTimeout(doCheck, 300);
+            } else {
+                window.addEventListener('load', () => setTimeout(doCheck, 300));
+            }
+        }
+    };
+    SessionGuard.run();
 
     const MoodleToolkit = (function () {
 

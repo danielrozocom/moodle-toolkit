@@ -6,6 +6,7 @@ Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra),
 
 ## Características
 
+- **Asistente inteligente de Quizzes / Exámenes** — memoriza automáticamente las respuestas correctas e incorrectas de revisiones previas (`/mod/quiz/review.php`). Al ingresar a un nuevo intento (`/mod/quiz/attempt.php`), pre-llena automáticamente las preguntas correctas y tacha con alerta visual las opciones que quedaron mal en el intento anterior para evitar volverlas a marcar.
 - **Calificador masivo inteligente** — marca respuestas en encuestas/feedback de Moodle y BanWeb con la nota seleccionada (1 a 5).
 - **Automatizador de tiempo / anti-inactividad** — detecta el tiempo mínimo requerido, mantiene la sesión activa y cuenta regresiva en pantalla.
 - **Completar SCORM** — fuerza el estado `completed`/`passed` y puntuación 100 en la API SCORM detectada (SCORM 1.2 y 2004).
@@ -31,6 +32,7 @@ El script incluye `@updateURL` y `@downloadURL` apuntando a este repositorio, po
 
 El código está organizado en módulos con responsabilidad única (principios SOLID):
 
+- `QuizModule` — memorización de revisiones, auto-llenado de respuestas correctas y tachado de opciones incorrectas en nuevos intentos.
 - `GraderModule` — calificación masiva.
 - `TimerModule` — temporizador y keep-alive.
 - `ScormModule` — detección y completado de API SCORM.

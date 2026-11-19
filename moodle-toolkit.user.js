@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name        Moodle Toolkit (Encuestas / Moodle / SCORM)
+// @name        Moodle Toolkit (Encuestas / Moodle / SCORM / Quiz)
 // @namespace   http://tampermonkey.net/
-// @version     5.8
-// @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra).
+// @version     6.0
+// @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra): Encuestas, SCORM, Auto-avance y Asistente de Quizzes/Exámenes.
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
 // @match       https://virtual.unipiloto.edu.co/*
@@ -322,12 +322,479 @@
             }
         };
 
+        const QuizModule = {
+            storagePrefix: 'moodle_quiz_memory_',
+            globalIndexKey: 'moodle_quiz_global_index',
+
+            getQuizId() {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('cmid')) return urlParams.get('cmid');
+
+                const viewLink = document.querySelector('a[href*="/mod/quiz/view.php?id="]');
+                if (viewLink) {
+                    const m = viewLink.href.match(/[?&]id=(\d+)/);
+                    if (m) return m[1];
+                }
+
+                const cmidClass = document.body?.className.match(/cmid-(\d+)/);
+                if (cmidClass && cmidClass[1]) return cmidClass[1];
+
+                const cmidInput = document.querySelector('input[name="cmid"]');
+                if (cmidInput && cmidInput.value) return cmidInput.value;
+
+                const h1Text = document.querySelector('h1, h2, .page-header-headings')?.innerText?.trim();
+                if (h1Text) return this.normalizeText(h1Text).substring(0, 40);
+
+                return 'default_quiz';
+            },
+
+            normalizeText(str) {
+                if (!str) return '';
+                return str
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase()
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            },
+
+            cleanQuestionKey(qEl) {
+                const qtext = qEl.querySelector('.qtext');
+                if (!qtext) return '';
+                const clone = qtext.cloneNode(true);
+                clone.querySelectorAll('.accesshide, .sr-only, script, style').forEach(el => el.remove());
+                clone.querySelectorAll('img').forEach(img => {
+                    const alt = img.getAttribute('alt') || img.src.split('/').pop().split('?')[0];
+                    const span = document.createElement('span');
+                    span.textContent = ` [img:${alt}] `;
+                    img.replaceWith(span);
+                });
+                let raw = clone.innerText || clone.textContent || '';
+                raw = raw.replace(/^pregunta\s*\d+\s*[:.-]?\s*/i, '').replace(/^\d+[\s.)-]+\s*/, '');
+                return this.normalizeText(raw);
+            },
+
+            cleanOptionText(optEl) {
+                if (!optEl) return '';
+                const clone = optEl.cloneNode(true);
+                clone.querySelectorAll('input, .answernumber, .icon, .feedback, .sr-only, .accesshide, .tk-badge-wrong, .tk-badge-correct, script, style').forEach(el => el.remove());
+                let raw = clone.innerText || clone.textContent || '';
+                raw = raw.replace(/^[a-e0-9][.)\-]\s*/i, '');
+                return this.normalizeText(raw);
+            },
+
+            parseRightAnswers(rightAnswerEl) {
+                if (!rightAnswerEl) return [];
+                let raw = rightAnswerEl.innerText || rightAnswerEl.textContent || '';
+                raw = raw.replace(/^(?:la respuesta correcta es|las respuestas correctas son|the correct answer is|the correct answers are|respuesta correcta)\s*:\s*/i, '').trim();
+                raw = raw.replace(/^['"«“](.*)['"»”]$/, '$1').trim();
+                if (!raw) return [];
+                const norm = this.cleanOptionText(rightAnswerEl);
+                return norm ? [norm] : [];
+            },
+
+            isQuestionCorrect(qEl) {
+                if (qEl.classList.contains('correct')) return true;
+                if (qEl.classList.contains('incorrect')) return false;
+
+                const stateText = (qEl.querySelector('.info .state')?.innerText || '').toLowerCase();
+                if (stateText.includes('correcta') || stateText.includes('correct')) return true;
+                if (stateText.includes('incorrecta') || stateText.includes('incorrect')) return false;
+
+                const gradeText = qEl.querySelector('.info .grade')?.innerText || '';
+                const m = gradeText.match(/([\d.,]+)\s*(?:sobre|out of|\/)\s*([\d.,]+)/i);
+                if (m) {
+                    const pts = parseFloat(m[1].replace(',', '.'));
+                    const max = parseFloat(m[2].replace(',', '.'));
+                    if (max > 0) {
+                        if (pts >= max) return true;
+                        if (pts === 0) return false;
+                    }
+                }
+                return null;
+            },
+
+            getQuizData(quizId) {
+                const key = `${this.storagePrefix}${quizId}`;
+                try {
+                    return JSON.parse(localStorage.getItem(key) || '{}');
+                } catch (e) {
+                    return {};
+                }
+            },
+
+            saveQuizData(quizId, questionResults) {
+                const storageKey = `${this.storagePrefix}${quizId}`;
+                let data = this.getQuizData(quizId);
+                if (!data.questions) data.questions = {};
+                data.lastUpdated = Date.now();
+                data.quizId = quizId;
+
+                questionResults.forEach(res => {
+                    if (!res || !res.key) return;
+                    if (!data.questions[res.key]) {
+                        data.questions[res.key] = { correct: [], incorrect: [] };
+                    }
+                    const qRecord = data.questions[res.key];
+
+                    res.correct.forEach(c => {
+                        if (!qRecord.correct.includes(c)) {
+                            qRecord.correct.push(c);
+                        }
+                        const idx = qRecord.incorrect.indexOf(c);
+                        if (idx !== -1) qRecord.incorrect.splice(idx, 1);
+                    });
+
+                    res.incorrect.forEach(inc => {
+                        if (!qRecord.incorrect.includes(inc) && !qRecord.correct.includes(inc)) {
+                            qRecord.incorrect.push(inc);
+                        }
+                    });
+                });
+
+                localStorage.setItem(storageKey, JSON.stringify(data));
+                this.updateGlobalIndex(questionResults);
+                return data;
+            },
+
+            updateGlobalIndex(questionResults) {
+                try {
+                    let globalData = JSON.parse(localStorage.getItem(this.globalIndexKey) || '{}');
+                    questionResults.forEach(res => {
+                        if (!res || !res.key) return;
+                        if (!globalData[res.key]) globalData[res.key] = { correct: [], incorrect: [] };
+                        const g = globalData[res.key];
+                        res.correct.forEach(c => {
+                            if (!g.correct.includes(c)) g.correct.push(c);
+                            const idx = g.incorrect.indexOf(c);
+                            if (idx !== -1) g.incorrect.splice(idx, 1);
+                        });
+                        res.incorrect.forEach(inc => {
+                            if (!g.incorrect.includes(inc) && !g.correct.includes(inc)) {
+                                g.incorrect.push(inc);
+                            }
+                        });
+                    });
+                    localStorage.setItem(this.globalIndexKey, JSON.stringify(globalData));
+                } catch (e) { /* noop */ }
+            },
+
+            findQuestionRecord(qKey, currentQuizData) {
+                if (currentQuizData?.questions?.[qKey]) {
+                    return currentQuizData.questions[qKey];
+                }
+                if (currentQuizData?.questions) {
+                    for (const [key, val] of Object.entries(currentQuizData.questions)) {
+                        if (this.matchText(qKey, key)) return val;
+                    }
+                }
+                try {
+                    const globalData = JSON.parse(localStorage.getItem(this.globalIndexKey) || '{}');
+                    if (globalData[qKey]) return globalData[qKey];
+                    for (const [key, val] of Object.entries(globalData)) {
+                        if (this.matchText(qKey, key)) return val;
+                    }
+                } catch (e) { /* noop */ }
+                return null;
+            },
+
+            matchText(a, b) {
+                if (!a || !b) return false;
+                if (a === b) return true;
+                if (a.length > 15 && b.length > 15) {
+                    if (a.includes(b) || b.includes(a)) return true;
+                }
+                return false;
+            },
+
+            matchOption(optText, targetText) {
+                if (!optText || !targetText) return false;
+                if (optText === targetText) return true;
+                if (optText.length > 8 && targetText.length > 8) {
+                    if (optText.includes(targetText) || targetText.includes(optText)) return true;
+                }
+                return false;
+            },
+
+            scanReviewPage() {
+                const quizId = this.getQuizId();
+                const questionEls = document.querySelectorAll('.que');
+                if (questionEls.length === 0) return { correctCount: 0, incorrectCount: 0 };
+
+                const results = [];
+                let totalCorrect = 0;
+                let totalIncorrect = 0;
+
+                questionEls.forEach(qEl => {
+                    const qKey = this.cleanQuestionKey(qEl);
+                    if (!qKey) return;
+
+                    const isCorrect = this.isQuestionCorrect(qEl);
+                    const rightAnswerEl = qEl.querySelector('.rightanswer');
+                    const revealedRightAnswers = this.parseRightAnswers(rightAnswerEl);
+
+                    const correctList = new Set();
+                    const incorrectList = new Set();
+
+                    revealedRightAnswers.forEach(ans => correctList.add(ans));
+
+                    const inputs = Array.from(qEl.querySelectorAll('.answer input[type="radio"], .answer input[type="checkbox"]'));
+                    inputs.forEach(input => {
+                        const row = input.closest('div[class*="r"], .form-check, li, tr') || input.parentElement;
+                        const optText = this.cleanOptionText(row || input.parentElement);
+                        if (!optText) return;
+
+                        const isChecked = input.checked || input.hasAttribute('checked');
+                        const hasCheckIcon = row.querySelector('.fa-check, .text-success, .correct') !== null || row.classList.contains('correct');
+                        const hasCrossIcon = row.querySelector('.fa-remove, .fa-times, .text-danger, .incorrect') !== null || row.classList.contains('incorrect');
+
+                        if (hasCheckIcon) {
+                            correctList.add(optText);
+                            this.markReviewOptionUI(row, 'correct');
+                        } else if (hasCrossIcon) {
+                            incorrectList.add(optText);
+                            this.markReviewOptionUI(row, 'incorrect');
+                        } else if (isChecked) {
+                            if (isCorrect === true) {
+                                correctList.add(optText);
+                                this.markReviewOptionUI(row, 'correct');
+                            } else if (isCorrect === false) {
+                                incorrectList.add(optText);
+                                this.markReviewOptionUI(row, 'incorrect');
+                            }
+                        }
+                    });
+
+                    // Short answer questions
+                    const textInput = qEl.querySelector('.que.shortanswer input[type="text"], .answer input[type="text"]');
+                    if (textInput) {
+                        const val = this.normalizeText(textInput.value || '');
+                        if (val) {
+                            if (isCorrect === true) correctList.add(val);
+                            else if (isCorrect === false) incorrectList.add(val);
+                        }
+                    }
+
+                    totalCorrect += correctList.size;
+                    totalIncorrect += incorrectList.size;
+
+                    results.push({
+                        key: qKey,
+                        correct: Array.from(correctList),
+                        incorrect: Array.from(incorrectList)
+                    });
+                });
+
+                const savedData = this.saveQuizData(quizId, results);
+                this.updatePanelReviewStats(savedData);
+                return { correctCount: totalCorrect, incorrectCount: totalIncorrect };
+            },
+
+            markReviewOptionUI(row, type) {
+                if (!row || row.dataset.tkReviewMarked) return;
+                row.dataset.tkReviewMarked = 'true';
+                const label = row.querySelector('label') || row;
+                if (type === 'correct') {
+                    if (!row.querySelector('.tk-badge-review-correct')) {
+                        const badge = document.createElement('span');
+                        badge.className = 'tk-badge-review-correct';
+                        badge.innerHTML = '💾 Guardada (correcta)';
+                        badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:600; margin-left:8px; display:inline-flex; align-items:center; gap:4px; vertical-align:middle;';
+                        label.appendChild(badge);
+                    }
+                } else if (type === 'incorrect') {
+                    if (!row.querySelector('.tk-badge-review-incorrect')) {
+                        const badge = document.createElement('span');
+                        badge.className = 'tk-badge-review-incorrect';
+                        badge.innerHTML = '💾 Guardada (para tachar)';
+                        badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:600; margin-left:8px; display:inline-flex; align-items:center; gap:4px; vertical-align:middle;';
+                        label.appendChild(badge);
+                    }
+                }
+            },
+
+            applyAttemptAnswers() {
+                const quizId = this.getQuizId();
+                const data = this.getQuizData(quizId);
+                const questionEls = document.querySelectorAll('.que');
+                if (questionEls.length === 0) return { filledCount: 0, struckCount: 0 };
+
+                let filledCount = 0;
+                let struckCount = 0;
+
+                questionEls.forEach(qEl => {
+                    const qKey = this.cleanQuestionKey(qEl);
+                    if (!qKey) return;
+
+                    const record = this.findQuestionRecord(qKey, data);
+                    if (!record) return;
+
+                    const { correct = [], incorrect = [] } = record;
+
+                    const inputs = Array.from(qEl.querySelectorAll('.answer input[type="radio"], .answer input[type="checkbox"]'));
+                    inputs.forEach(input => {
+                        const row = input.closest('div[class*="r"], .form-check, li, tr') || input.parentElement;
+                        const optText = this.cleanOptionText(row || input.parentElement);
+                        if (!optText) return;
+
+                        // 1. Is this option known to be INCORRECT?
+                        const isWrong = incorrect.some(inc => this.matchOption(optText, inc));
+                        if (isWrong) {
+                            this.markOptionIncorrect(row, input);
+                            struckCount++;
+                        }
+
+                        // 2. Is this option known to be CORRECT?
+                        const isCorrect = correct.some(c => this.matchOption(optText, c));
+                        if (isCorrect) {
+                            this.markOptionCorrectAndSelect(row, input);
+                            filledCount++;
+                        }
+                    });
+
+                    // Short answer
+                    const textInput = qEl.querySelector('.que.shortanswer input[type="text"], .answer input[type="text"]');
+                    if (textInput && correct.length > 0) {
+                        if (!textInput.value) {
+                            textInput.value = correct[0];
+                            textInput.dispatchEvent(new Event('input', { bubbles: true }));
+                            textInput.dispatchEvent(new Event('change', { bubbles: true }));
+                            textInput.style.backgroundColor = '#f0fdf4';
+                            textInput.style.borderColor = '#22c55e';
+                            filledCount++;
+                        }
+                    }
+                });
+
+                this.updatePanelAttemptStats(filledCount, struckCount);
+                return { filledCount, struckCount };
+            },
+
+            markOptionIncorrect(row, input) {
+                if (!row) return;
+                if (row.dataset.tkMarkedIncorrect) return;
+                row.dataset.tkMarkedIncorrect = 'true';
+
+                const label = row.querySelector('label') || row;
+                label.style.textDecoration = 'line-through 2px #dc2626';
+                label.style.color = '#991b1b';
+                label.style.opacity = '0.65';
+                row.style.background = 'rgba(254, 226, 226, 0.4)';
+                row.style.borderRadius = '6px';
+                row.style.padding = '2px 6px';
+                row.style.transition = 'all 0.2s ease';
+
+                if (input && input.checked) {
+                    input.checked = false;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+
+                if (!row.querySelector('.tk-badge-wrong')) {
+                    const badge = document.createElement('span');
+                    badge.className = 'tk-badge-wrong';
+                    badge.innerHTML = '❌ <b>Incorrecta</b> (intento previo)';
+                    badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:8px; display:inline-flex; align-items:center; gap:4px; text-decoration:none; vertical-align:middle;';
+                    label.appendChild(badge);
+                }
+
+                if (input) {
+                    input.addEventListener('click', (e) => {
+                        const confirmed = window.confirm('⚠️ ATENCIÓN: Marcaste esta respuesta en el intento anterior y quedó INCORRECTA.\n\n¿Estás seguro de que deseas seleccionarla de nuevo?');
+                        if (!confirmed) {
+                            e.preventDefault();
+                            input.checked = false;
+                        }
+                    });
+                }
+            },
+
+            markOptionCorrectAndSelect(row, input) {
+                if (!row || !input) return;
+                if (row.dataset.tkMarkedCorrect) return;
+                row.dataset.tkMarkedCorrect = 'true';
+
+                if (!input.checked) {
+                    input.checked = true;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                    input.dispatchEvent(new Event('click', { bubbles: true }));
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+
+                const label = row.querySelector('label') || row;
+                label.style.fontWeight = '600';
+                label.style.color = '#15803d';
+                row.style.background = '#f0fdf4';
+                row.style.border = '1px solid #86efac';
+                row.style.borderRadius = '6px';
+                row.style.padding = '2px 6px';
+                row.style.transition = 'all 0.2s ease';
+
+                if (!row.querySelector('.tk-badge-correct')) {
+                    const badge = document.createElement('span');
+                    badge.className = 'tk-badge-correct';
+                    badge.innerHTML = '✅ <b>Correcta</b> (prellenada)';
+                    badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:8px; display:inline-flex; align-items:center; gap:4px; vertical-align:middle;';
+                    label.appendChild(badge);
+                }
+            },
+
+            clearQuizData() {
+                const quizId = this.getQuizId();
+                localStorage.removeItem(`${this.storagePrefix}${quizId}`);
+                alert('🗑️ Memoria de respuestas para este quiz eliminada con éxito.');
+                window.location.reload();
+            },
+
+            getQuizStats() {
+                const quizId = this.getQuizId();
+                const data = this.getQuizData(quizId);
+                let correctCount = 0;
+                let incorrectCount = 0;
+                let questionCount = 0;
+                if (data && data.questions) {
+                    questionCount = Object.keys(data.questions).length;
+                    Object.values(data.questions).forEach(q => {
+                        correctCount += (q.correct || []).length;
+                        incorrectCount += (q.incorrect || []).length;
+                    });
+                }
+                return { questionCount, correctCount, incorrectCount };
+            },
+
+            updatePanelReviewStats(data) {
+                const statEl = document.getElementById('tk-quiz-review-stats');
+                if (!statEl) return;
+                const stats = this.getQuizStats();
+                statEl.innerHTML = `
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <span>📝 <b>${stats.questionCount}</b> preguntas registradas</span>
+                        <span style="color:#15803d;">✅ <b>${stats.correctCount}</b> respuestas correctas guardadas</span>
+                        <span style="color:#b91c1c;">❌ <b>${stats.incorrectCount}</b> opciones incorrectas guardadas</span>
+                    </div>
+                `;
+            },
+
+            updatePanelAttemptStats(filledCount, struckCount) {
+                const statEl = document.getElementById('tk-quiz-attempt-stats');
+                if (!statEl) return;
+                statEl.innerHTML = `
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <span style="color:#15803d;">✅ <b>${filledCount}</b> respuestas prellenadas</span>
+                        <span style="color:#b91c1c;">❌ <b>${struckCount}</b> opciones incorrectas tachadas</span>
+                    </div>
+                `;
+            }
+        };
+
         const PageDetector = {
             detect() {
                 const fullBodyText = document.body.innerText;
                 const lowerBodyText = fullBodyText.toLowerCase();
                 const currentUrl = window.location.href;
 
+                const isQuizReview = currentUrl.includes('/mod/quiz/review.php');
+                const isQuizAttempt = currentUrl.includes('/mod/quiz/attempt.php') || currentUrl.includes('/mod/quiz/processattempt.php');
+                const isQuizView = currentUrl.includes('/mod/quiz/view.php');
                 const isMoodleQuiz = currentUrl.includes('/mod/quiz/');
 
                 const isActivityCompleted = /hecho\s*:/i.test(fullBodyText) ||
@@ -362,7 +829,16 @@
 
                 const needsTimer = !isMoodleQuiz && !isActivityCompleted && hasExplicitTimeRequirement;
 
-                return { needsTimer, hasScorm, hasSurveys, isLessonPage };
+                return {
+                    needsTimer,
+                    hasScorm,
+                    hasSurveys,
+                    isLessonPage,
+                    isQuizReview,
+                    isQuizAttempt,
+                    isQuizView,
+                    isMoodleQuiz
+                };
             }
         };
 
@@ -377,7 +853,10 @@
                 clock: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
                 rocket: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>',
                 x: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
-                minimize: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>'
+                minimize: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>',
+                brain: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04z"/></svg>',
+                refresh: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>',
+                trash: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
             },
 
             injectStyles() {
@@ -445,6 +924,8 @@
                     #moodle-toolkit-panel .tk-timer span { font-variant-numeric: tabular-nums; }
                     #moodle-toolkit-panel .tk-header-actions { display: flex; gap: 4px; }
                     #moodle-toolkit-panel.tk-minimized .tk-body { display: none; }
+                    .tk-badge-correct { background: #dcfce7 !important; color: #15803d !important; }
+                    .tk-badge-wrong { background: #fee2e2 !important; color: #b91c1c !important; }
                     @media (prefers-color-scheme: dark) {
                         #moodle-toolkit-panel { background: #0f172a; color: #f8fafc; border-color: #334155; box-shadow: 0 10px 15px -3px rgba(0,0,0,.4); }
                         #moodle-toolkit-panel .tk-header { border-bottom-color: #334155; }
@@ -460,6 +941,9 @@
                         #moodle-toolkit-panel .tk-timer { background: #052e16; color: #86efac; border-color: #166534; }
                         #moodle-toolkit-panel .tk-section { border-top-color: #334155; }
                         #moodle-toolkit-panel .tk-label { color: #94a3b8; }
+                        .tk-badge-correct { background: #052e16 !important; color: #86efac !important; }
+                        .tk-badge-wrong { background: #450a0a !important; color: #fca5a5 !important; }
+                        #tk-quiz-review-stats, #tk-quiz-attempt-stats, #tk-quiz-view-stats { color: #94a3b8 !important; }
                     }
                 `;
                 document.head.appendChild(style);
@@ -470,7 +954,7 @@
                 const isMoodleOrBanWeb = window.location.hostname.includes('unipiloto.edu.co');
                 if (!isMoodleOrBanWeb) return;
 
-                if (!flags.isLessonPage && !flags.needsTimer && !flags.hasScorm && !flags.hasSurveys) return;
+                if (!flags.isLessonPage && !flags.needsTimer && !flags.hasScorm && !flags.hasSurveys && !flags.isQuizReview && !flags.isQuizAttempt && !flags.isQuizView) return;
 
                 this.injectStyles();
 
@@ -488,6 +972,55 @@
                         </div>
                     </div>
                     <div class="tk-body">`;
+
+                if (flags.isQuizReview) {
+                    html += `
+                        <div class="tk-section" style="border-top:none; padding-top:0;">
+                            <label class="tk-label">${this.Icons.brain} Asistente de Quiz (Revisión)</label>
+                            <div id="tk-quiz-review-stats" style="font-size:12px; color:#475569; margin-bottom:8px; line-height:1.4;">
+                                Analizando respuestas de la revisión...
+                            </div>
+                            <div class="tk-row" style="margin-bottom:6px;">
+                                <button id="btn-tk-quiz-rescan" class="tk-btn tk-btn-primary" style="flex:1;">
+                                    ${this.Icons.refresh} Re-escanear
+                                </button>
+                            </div>
+                            <button id="btn-tk-quiz-clear" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px;">
+                                ${this.Icons.trash} Limpiar memoria
+                            </button>
+                        </div>`;
+                }
+
+                if (flags.isQuizAttempt) {
+                    html += `
+                        <div class="tk-section" style="border-top:none; padding-top:0;">
+                            <label class="tk-label">${this.Icons.brain} Asistente de Quiz (Intento)</label>
+                            <div id="tk-quiz-attempt-stats" style="font-size:12px; color:#475569; margin-bottom:8px; line-height:1.4;">
+                                Cargando respuestas memorizadas...
+                            </div>
+                            <div class="tk-row" style="margin-bottom:6px;">
+                                <button id="btn-tk-quiz-apply" class="tk-btn tk-btn-primary" style="flex:1;">
+                                    ${this.Icons.zap} Re-aplicar Respuestas
+                                </button>
+                            </div>
+                            <button id="btn-tk-quiz-clear" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px;">
+                                ${this.Icons.trash} Limpiar memoria
+                            </button>
+                        </div>`;
+                }
+
+                if (flags.isQuizView && !flags.isQuizReview && !flags.isQuizAttempt) {
+                    html += `
+                        <div class="tk-section" style="border-top:none; padding-top:0;">
+                            <label class="tk-label">${this.Icons.brain} Asistente de Quiz</label>
+                            <div id="tk-quiz-view-stats" style="font-size:12px; color:#475569; margin-bottom:8px; line-height:1.4;">
+                                Memoria activa para este examen.
+                            </div>
+                            <button id="btn-tk-quiz-clear" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px;">
+                                ${this.Icons.trash} Limpiar memoria
+                            </button>
+                        </div>`;
+                }
 
                 if (flags.isLessonPage) {
                     html += `
@@ -567,6 +1100,31 @@
                 const gradeBtn = document.getElementById('btn-tk-grade');
                 if (gradeBtn) gradeBtn.onclick = () => GraderModule.execute();
 
+                const rescanBtn = document.getElementById('btn-tk-quiz-rescan');
+                if (rescanBtn) {
+                    rescanBtn.onclick = () => {
+                        const res = QuizModule.scanReviewPage();
+                        alert(`🧠 Revisión analizada:\n- ${res.correctCount} respuestas correctas guardadas\n- ${res.incorrectCount} opciones incorrectas registradas`);
+                    };
+                }
+
+                const applyBtn = document.getElementById('btn-tk-quiz-apply');
+                if (applyBtn) {
+                    applyBtn.onclick = () => {
+                        const res = QuizModule.applyAttemptAnswers();
+                        alert(`⚡ Respuestas aplicadas:\n- ${res.filledCount} correctas prellenadas\n- ${res.struckCount} incorrectas tachadas`);
+                    };
+                }
+
+                const clearQuizBtn = document.getElementById('btn-tk-quiz-clear');
+                if (clearQuizBtn) {
+                    clearQuizBtn.onclick = () => {
+                        if (confirm('¿Deseas borrar la memoria de respuestas para este examen?')) {
+                            QuizModule.clearQuizData();
+                        }
+                    };
+                }
+
                 const closeBtn = document.getElementById('close-toolkit-panel');
                 if (closeBtn) closeBtn.onclick = () => document.getElementById(this.panelId)?.remove();
 
@@ -623,7 +1181,30 @@
                 }
             });
 
-            const run = () => UiModule.render(PageDetector.detect());
+            const run = () => {
+                const flags = PageDetector.detect();
+                UiModule.render(flags);
+
+                if (flags.isQuizReview) {
+                    QuizModule.scanReviewPage();
+                } else if (flags.isQuizAttempt) {
+                    setTimeout(() => {
+                        QuizModule.applyAttemptAnswers();
+                    }, 400);
+                } else if (flags.isQuizView) {
+                    const stats = QuizModule.getQuizStats();
+                    const statEl = document.getElementById('tk-quiz-view-stats');
+                    if (statEl) {
+                        statEl.innerHTML = `
+                            <span>📝 <b>${stats.questionCount}</b> preguntas en memoria</span><br>
+                            <span style="color:#15803d;">✅ <b>${stats.correctCount}</b> correctas</span> | 
+                            <span style="color:#b91c1c;">❌ <b>${stats.incorrectCount}</b> a tachar</span><br>
+                            <small style="color:#64748b;">Se aplicarán automáticamente al iniciar intento.</small>
+                        `;
+                    }
+                }
+            };
+
             if (document.readyState === 'complete' || document.readyState === 'interactive') {
                 run();
             } else {
@@ -631,7 +1212,7 @@
             }
         }
 
-        return { init, State, AutoAdvanceModule };
+        return { init, State, AutoAdvanceModule, QuizModule };
     })();
 
     MoodleToolkit.init();

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM / Quiz)
 // @namespace   http://tampermonkey.net/
-// @version     6.0
+// @version     6.1
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra): Encuestas, SCORM, Auto-avance y Asistente de Quizzes/Exámenes.
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
@@ -359,10 +359,10 @@
             },
 
             cleanQuestionKey(qEl) {
-                const qtext = qEl.querySelector('.qtext');
+                const qtext = qEl.querySelector('.qtext') || qEl.querySelector('.content .formulation');
                 if (!qtext) return '';
                 const clone = qtext.cloneNode(true);
-                clone.querySelectorAll('.accesshide, .sr-only, script, style').forEach(el => el.remove());
+                clone.querySelectorAll('.accesshide, .sr-only, select, input, script, style').forEach(el => el.remove());
                 clone.querySelectorAll('img').forEach(img => {
                     const alt = img.getAttribute('alt') || img.src.split('/').pop().split('?')[0];
                     const span = document.createElement('span');
@@ -377,7 +377,7 @@
             cleanOptionText(optEl) {
                 if (!optEl) return '';
                 const clone = optEl.cloneNode(true);
-                clone.querySelectorAll('input, .answernumber, .icon, .feedback, .sr-only, .accesshide, .tk-badge-wrong, .tk-badge-correct, script, style').forEach(el => el.remove());
+                clone.querySelectorAll('input, .answernumber, .icon, .feedback, .sr-only, .accesshide, .tk-badge-wrong, .tk-badge-correct, .tk-badge-review-correct, .tk-badge-review-incorrect, script, style').forEach(el => el.remove());
                 let raw = clone.innerText || clone.textContent || '';
                 raw = raw.replace(/^[a-e0-9][.)\-]\s*/i, '');
                 return this.normalizeText(raw);
@@ -398,7 +398,10 @@
                 if (qEl.classList.contains('incorrect')) return false;
 
                 const stateText = (qEl.querySelector('.info .state')?.innerText || '').toLowerCase();
-                if (stateText.includes('correcta') || stateText.includes('correct')) return true;
+                if (stateText.includes('correcta') || stateText.includes('correct')) {
+                    if (stateText.includes('parcialmente') || stateText.includes('partially')) return null;
+                    return true;
+                }
                 if (stateText.includes('incorrecta') || stateText.includes('incorrect')) return false;
 
                 const gradeText = qEl.querySelector('.info .grade')?.innerText || '';
@@ -409,7 +412,82 @@
                     if (max > 0) {
                         if (pts >= max) return true;
                         if (pts === 0) return false;
+                        return null;
                     }
+                }
+                return null;
+            },
+
+            getInputFeedbackState(el, qEl) {
+                const next = el.nextElementSibling;
+                if (next) {
+                    if (next.querySelector('.text-success, .fa-check, img[src*="check"], [title*="correct" i]') ||
+                        next.classList.contains('text-success') || next.classList.contains('fa-check') || next.classList.contains('correct')) {
+                        return 'correct';
+                    }
+                    if (next.querySelector('.text-danger, .fa-remove, .fa-times, .fa-xmark, .fa-close, img[src*="cross"], [title*="incorrect" i]') ||
+                        next.classList.contains('text-danger') || next.classList.contains('fa-remove') || next.classList.contains('fa-times') || next.classList.contains('incorrect')) {
+                        return 'incorrect';
+                    }
+                }
+
+                const container = el.closest('.form-check, tr, p, li, .r0, .r1, .control, .feedbackspan, div') || el.parentElement;
+                if (container) {
+                    const icons = container.querySelectorAll('.icon, i, img, .feedbackspan, span[class*="feedback"]');
+                    for (const icon of icons) {
+                        const html = icon.outerHTML || '';
+                        const title = (icon.getAttribute('title') || icon.getAttribute('aria-label') || '').toLowerCase();
+                        const alt = (icon.getAttribute('alt') || '').toLowerCase();
+                        const cls = icon.className || '';
+
+                        if (cls.includes('text-success') || cls.includes('fa-check') || title.includes('correct') || alt.includes('correct') || html.includes('text-success')) {
+                            return 'correct';
+                        }
+                        if (cls.includes('text-danger') || cls.includes('fa-remove') || cls.includes('fa-times') || cls.includes('fa-xmark') || title.includes('incorrect') || alt.includes('incorrect') || html.includes('text-danger')) {
+                            return 'incorrect';
+                        }
+                    }
+                }
+
+                const qState = this.isQuestionCorrect(qEl);
+                if (qState === true) return 'correct';
+                if (qState === false) return 'incorrect';
+
+                return null;
+            },
+
+            getBlankKey(el, index) {
+                const row = el.closest('tr, li, p, div') || el.parentElement;
+                let text = '';
+                if (row) {
+                    const clone = row.cloneNode(true);
+                    clone.querySelectorAll('select, input, .feedbackspan, .icon, script, style, .sr-only, .accesshide, .tk-badge-review-correct, .tk-badge-review-incorrect').forEach(n => n.remove());
+                    text = this.normalizeText(clone.innerText || clone.textContent || '');
+                }
+                const name = el.getAttribute('name') || '';
+                const subMatch = name.match(/sub(\d+)/i) || name.match(/_(\d+)/);
+                const subId = subMatch ? subMatch[1] : '';
+
+                return {
+                    key: text ? text.substring(0, 60) : `idx_${index}`,
+                    subId: subId,
+                    index: index
+                };
+            },
+
+            findBlankRecord(qRecord, el, index) {
+                if (!qRecord || !qRecord.blanks) return null;
+                const { key, subId } = this.getBlankKey(el, index);
+
+                if (qRecord.blanks[key]) return qRecord.blanks[key];
+                if (subId && qRecord.blanks[subId]) return qRecord.blanks[subId];
+                if (qRecord.blanks[index]) return qRecord.blanks[index];
+                if (qRecord.blanks[`idx_${index}`]) return qRecord.blanks[`idx_${index}`];
+
+                for (const b of Object.values(qRecord.blanks)) {
+                    if (b.index === index) return b;
+                    if (subId && b.subId === subId) return b;
+                    if (key && b.key && (b.key.includes(key) || key.includes(b.key))) return b;
                 }
                 return null;
             },
@@ -433,23 +511,42 @@
                 questionResults.forEach(res => {
                     if (!res || !res.key) return;
                     if (!data.questions[res.key]) {
-                        data.questions[res.key] = { correct: [], incorrect: [] };
+                        data.questions[res.key] = { correct: [], incorrect: [], blanks: {} };
                     }
                     const qRecord = data.questions[res.key];
+                    if (!qRecord.blanks) qRecord.blanks = {};
 
-                    res.correct.forEach(c => {
-                        if (!qRecord.correct.includes(c)) {
-                            qRecord.correct.push(c);
-                        }
+                    (res.correct || []).forEach(c => {
+                        if (!qRecord.correct.includes(c)) qRecord.correct.push(c);
                         const idx = qRecord.incorrect.indexOf(c);
                         if (idx !== -1) qRecord.incorrect.splice(idx, 1);
                     });
 
-                    res.incorrect.forEach(inc => {
+                    (res.incorrect || []).forEach(inc => {
                         if (!qRecord.incorrect.includes(inc) && !qRecord.correct.includes(inc)) {
                             qRecord.incorrect.push(inc);
                         }
                     });
+
+                    if (res.blanks) {
+                        for (const [bKey, bVal] of Object.entries(res.blanks)) {
+                            if (!qRecord.blanks[bKey]) {
+                                qRecord.blanks[bKey] = bVal;
+                            } else {
+                                const existing = qRecord.blanks[bKey];
+                                (bVal.correct || []).forEach(c => {
+                                    if (!existing.correct.includes(c)) existing.correct.push(c);
+                                    const idx = existing.incorrect.indexOf(c);
+                                    if (idx !== -1) existing.incorrect.splice(idx, 1);
+                                });
+                                (bVal.incorrect || []).forEach(inc => {
+                                    if (!existing.incorrect.includes(inc) && !existing.correct.includes(inc)) {
+                                        existing.incorrect.push(inc);
+                                    }
+                                });
+                            }
+                        }
+                    }
                 });
 
                 localStorage.setItem(storageKey, JSON.stringify(data));
@@ -462,18 +559,25 @@
                     let globalData = JSON.parse(localStorage.getItem(this.globalIndexKey) || '{}');
                     questionResults.forEach(res => {
                         if (!res || !res.key) return;
-                        if (!globalData[res.key]) globalData[res.key] = { correct: [], incorrect: [] };
+                        if (!globalData[res.key]) globalData[res.key] = { correct: [], incorrect: [], blanks: {} };
                         const g = globalData[res.key];
-                        res.correct.forEach(c => {
+                        if (!g.blanks) g.blanks = {};
+
+                        (res.correct || []).forEach(c => {
                             if (!g.correct.includes(c)) g.correct.push(c);
                             const idx = g.incorrect.indexOf(c);
                             if (idx !== -1) g.incorrect.splice(idx, 1);
                         });
-                        res.incorrect.forEach(inc => {
+                        (res.incorrect || []).forEach(inc => {
                             if (!g.incorrect.includes(inc) && !g.correct.includes(inc)) {
                                 g.incorrect.push(inc);
                             }
                         });
+                        if (res.blanks) {
+                            for (const [bKey, bVal] of Object.entries(res.blanks)) {
+                                g.blanks[bKey] = bVal;
+                            }
+                        }
                     });
                     localStorage.setItem(this.globalIndexKey, JSON.stringify(globalData));
                 } catch (e) { /* noop */ }
@@ -509,9 +613,11 @@
 
             matchOption(optText, targetText) {
                 if (!optText || !targetText) return false;
-                if (optText === targetText) return true;
-                if (optText.length > 8 && targetText.length > 8) {
-                    if (optText.includes(targetText) || targetText.includes(optText)) return true;
+                const cleanOpt = this.normalizeText(optText);
+                const cleanTarget = this.normalizeText(targetText);
+                if (cleanOpt === cleanTarget) return true;
+                if (cleanOpt.length > 5 && cleanTarget.length > 5) {
+                    if (cleanOpt.includes(cleanTarget) || cleanTarget.includes(cleanOpt)) return true;
                 }
                 return false;
             },
@@ -529,15 +635,16 @@
                     const qKey = this.cleanQuestionKey(qEl);
                     if (!qKey) return;
 
-                    const isCorrect = this.isQuestionCorrect(qEl);
                     const rightAnswerEl = qEl.querySelector('.rightanswer');
                     const revealedRightAnswers = this.parseRightAnswers(rightAnswerEl);
 
                     const correctList = new Set();
                     const incorrectList = new Set();
+                    const blanks = {};
 
                     revealedRightAnswers.forEach(ans => correctList.add(ans));
 
+                    // 1. SCAN RADIOS & CHECKBOXES
                     const inputs = Array.from(qEl.querySelectorAll('.answer input[type="radio"], .answer input[type="checkbox"]'));
                     inputs.forEach(input => {
                         const row = input.closest('div[class*="r"], .form-check, li, tr') || input.parentElement;
@@ -545,16 +652,16 @@
                         if (!optText) return;
 
                         const isChecked = input.checked || input.hasAttribute('checked');
-                        const hasCheckIcon = row.querySelector('.fa-check, .text-success, .correct') !== null || row.classList.contains('correct');
-                        const hasCrossIcon = row.querySelector('.fa-remove, .fa-times, .text-danger, .incorrect') !== null || row.classList.contains('incorrect');
+                        const state = this.getInputFeedbackState(input, qEl);
 
-                        if (hasCheckIcon) {
+                        if (state === 'correct') {
                             correctList.add(optText);
                             this.markReviewOptionUI(row, 'correct');
-                        } else if (hasCrossIcon) {
+                        } else if (state === 'incorrect') {
                             incorrectList.add(optText);
                             this.markReviewOptionUI(row, 'incorrect');
                         } else if (isChecked) {
+                            const isCorrect = this.isQuestionCorrect(qEl);
                             if (isCorrect === true) {
                                 correctList.add(optText);
                                 this.markReviewOptionUI(row, 'correct');
@@ -565,15 +672,44 @@
                         }
                     });
 
-                    // Short answer questions
-                    const textInput = qEl.querySelector('.que.shortanswer input[type="text"], .answer input[type="text"]');
-                    if (textInput) {
-                        const val = this.normalizeText(textInput.value || '');
-                        if (val) {
-                            if (isCorrect === true) correctList.add(val);
-                            else if (isCorrect === false) incorrectList.add(val);
+                    // 2. SCAN SELECT DROPDOWNS (Gapselect, Cloze, Match)
+                    const selects = Array.from(qEl.querySelectorAll('select'));
+                    selects.forEach((sel, i) => {
+                        const { key: bKey, subId } = this.getBlankKey(sel, i);
+                        const selectedOpt = sel.options[sel.selectedIndex];
+                        const optText = this.cleanOptionText(selectedOpt || sel);
+                        const optVal = sel.value;
+                        const state = this.getInputFeedbackState(sel, qEl);
+
+                        if (state === 'correct' && optText) {
+                            blanks[bKey] = { type: 'select', key: bKey, subId, index: i, correct: [optText], incorrect: [], value: optVal };
+                            this.markReviewBlankUI(sel, 'correct');
+                            totalCorrect++;
+                        } else if (state === 'incorrect' && optText) {
+                            blanks[bKey] = { type: 'select', key: bKey, subId, index: i, correct: [], incorrect: [optText], value: optVal };
+                            this.markReviewBlankUI(sel, 'incorrect');
+                            totalIncorrect++;
                         }
-                    }
+                    });
+
+                    // 3. SCAN TEXT INPUTS (Cloze / Multianswer / Shortanswer fill-in-the-blanks)
+                    const textInputs = Array.from(qEl.querySelectorAll('input[type="text"]'));
+                    textInputs.forEach((txt, i) => {
+                        if (txt.closest('.sr-only, .accesshide')) return;
+                        const { key: bKey, subId } = this.getBlankKey(txt, i);
+                        const val = (txt.value || '').trim();
+                        const state = this.getInputFeedbackState(txt, qEl);
+
+                        if (state === 'correct' && val) {
+                            blanks[bKey] = { type: 'text', key: bKey, subId, index: i, correct: [val], incorrect: [] };
+                            this.markReviewBlankUI(txt, 'correct');
+                            totalCorrect++;
+                        } else if (state === 'incorrect' && val) {
+                            blanks[bKey] = { type: 'text', key: bKey, subId, index: i, correct: [], incorrect: [val] };
+                            this.markReviewBlankUI(txt, 'incorrect');
+                            totalIncorrect++;
+                        }
+                    });
 
                     totalCorrect += correctList.size;
                     totalIncorrect += incorrectList.size;
@@ -581,7 +717,8 @@
                     results.push({
                         key: qKey,
                         correct: Array.from(correctList),
-                        incorrect: Array.from(incorrectList)
+                        incorrect: Array.from(incorrectList),
+                        blanks: blanks
                     });
                 });
 
@@ -613,6 +750,32 @@
                 }
             },
 
+            markReviewBlankUI(el, type) {
+                const parent = el.parentElement;
+                if (!parent || parent.dataset.tkBlankMarked) return;
+                parent.dataset.tkBlankMarked = 'true';
+
+                if (type === 'correct') {
+                    el.style.borderColor = '#22c55e';
+                    if (!parent.querySelector('.tk-badge-review-correct')) {
+                        const badge = document.createElement('span');
+                        badge.className = 'tk-badge-review-correct';
+                        badge.innerHTML = '💾 Guardada';
+                        badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 5px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                        parent.appendChild(badge);
+                    }
+                } else if (type === 'incorrect') {
+                    el.style.borderColor = '#ef4444';
+                    if (!parent.querySelector('.tk-badge-review-incorrect')) {
+                        const badge = document.createElement('span');
+                        badge.className = 'tk-badge-review-incorrect';
+                        badge.innerHTML = '💾 Guardada (para tachar)';
+                        badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 5px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                        parent.appendChild(badge);
+                    }
+                }
+            },
+
             applyAttemptAnswers() {
                 const quizId = this.getQuizId();
                 const data = this.getQuizData(quizId);
@@ -631,20 +794,19 @@
 
                     const { correct = [], incorrect = [] } = record;
 
+                    // 1. APPLY RADIOS & CHECKBOXES
                     const inputs = Array.from(qEl.querySelectorAll('.answer input[type="radio"], .answer input[type="checkbox"]'));
                     inputs.forEach(input => {
                         const row = input.closest('div[class*="r"], .form-check, li, tr') || input.parentElement;
                         const optText = this.cleanOptionText(row || input.parentElement);
                         if (!optText) return;
 
-                        // 1. Is this option known to be INCORRECT?
                         const isWrong = incorrect.some(inc => this.matchOption(optText, inc));
                         if (isWrong) {
                             this.markOptionIncorrect(row, input);
                             struckCount++;
                         }
 
-                        // 2. Is this option known to be CORRECT?
                         const isCorrect = correct.some(c => this.matchOption(optText, c));
                         if (isCorrect) {
                             this.markOptionCorrectAndSelect(row, input);
@@ -652,18 +814,114 @@
                         }
                     });
 
-                    // Short answer
-                    const textInput = qEl.querySelector('.que.shortanswer input[type="text"], .answer input[type="text"]');
-                    if (textInput && correct.length > 0) {
-                        if (!textInput.value) {
-                            textInput.value = correct[0];
-                            textInput.dispatchEvent(new Event('input', { bubbles: true }));
-                            textInput.dispatchEvent(new Event('change', { bubbles: true }));
-                            textInput.style.backgroundColor = '#f0fdf4';
-                            textInput.style.borderColor = '#22c55e';
-                            filledCount++;
+                    // 2. APPLY SELECT DROPDOWNS (Gapselect, Cloze, Match)
+                    const selects = Array.from(qEl.querySelectorAll('select'));
+                    selects.forEach((sel, i) => {
+                        const blank = this.findBlankRecord(record, sel, i);
+                        if (!blank) return;
+
+                        if (blank.correct && blank.correct.length > 0) {
+                            const target = blank.correct[0];
+                            const matchOpt = Array.from(sel.options).find(o => this.matchOption(this.cleanOptionText(o), target));
+                            if (matchOpt) {
+                                sel.value = matchOpt.value;
+                                sel.selectedIndex = matchOpt.index;
+                                sel.dispatchEvent(new Event('change', { bubbles: true }));
+                                sel.dispatchEvent(new Event('input', { bubbles: true }));
+                                sel.style.border = '2px solid #22c55e';
+                                sel.style.backgroundColor = '#f0fdf4';
+
+                                if (!sel.parentElement.querySelector('.tk-badge-correct')) {
+                                    const badge = document.createElement('span');
+                                    badge.className = 'tk-badge-correct';
+                                    badge.innerHTML = '✅ Prellenada';
+                                    badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                    sel.parentElement.appendChild(badge);
+                                }
+                                filledCount++;
+                            }
                         }
-                    }
+
+                        if (blank.incorrect && blank.incorrect.length > 0) {
+                            const wrongTarget = blank.incorrect[0];
+                            const wrongOpt = Array.from(sel.options).find(o => this.matchOption(this.cleanOptionText(o), wrongTarget));
+                            if (wrongOpt) {
+                                if (!wrongOpt.text.includes('❌')) {
+                                    wrongOpt.text += ' ❌ (Incorrecta en intento previo)';
+                                    wrongOpt.style.color = '#dc2626';
+                                }
+                                sel.style.border = '2px solid #ef4444';
+                                sel.style.backgroundColor = '#fef2f2';
+
+                                if (!sel.parentElement.querySelector('.tk-badge-wrong')) {
+                                    const badge = document.createElement('span');
+                                    badge.className = 'tk-badge-wrong';
+                                    badge.innerHTML = `❌ Intento anterior: "${wrongTarget}"`;
+                                    badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                    sel.parentElement.appendChild(badge);
+                                }
+
+                                const realOptions = Array.from(sel.options).filter(o => o.value !== '' && o.text.trim() !== '' && !o.text.includes('Choose') && !o.text.includes('Elegir'));
+                                if (realOptions.length === 2) {
+                                    const otherOpt = realOptions.find(o => !this.matchOption(this.cleanOptionText(o), wrongTarget));
+                                    if (otherOpt && (!blank.correct || blank.correct.length === 0)) {
+                                        sel.value = otherOpt.value;
+                                        sel.selectedIndex = otherOpt.index;
+                                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                                        sel.dispatchEvent(new Event('input', { bubbles: true }));
+                                        sel.style.border = '2px solid #22c55e';
+                                        sel.style.backgroundColor = '#f0fdf4';
+
+                                        if (!sel.parentElement.querySelector('.tk-badge-deduced')) {
+                                            const deduceBadge = document.createElement('span');
+                                            deduceBadge.className = 'tk-badge-deduced';
+                                            deduceBadge.innerHTML = `✅ <b>Prellenada (${otherOpt.text})</b> [deducida]`;
+                                            deduceBadge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                            sel.parentElement.appendChild(deduceBadge);
+                                        }
+                                        filledCount++;
+                                    }
+                                }
+                                struckCount++;
+                            }
+                        }
+                    });
+
+                    // 3. APPLY TEXT INPUTS (Cloze / Multianswer / Shortanswer fill-in-the-blanks)
+                    const textInputs = Array.from(qEl.querySelectorAll('input[type="text"]'));
+                    textInputs.forEach((txt, i) => {
+                        if (txt.closest('.sr-only, .accesshide')) return;
+                        const blank = this.findBlankRecord(record, txt, i);
+
+                        if (blank && blank.correct && blank.correct.length > 0) {
+                            txt.value = blank.correct[0];
+                            txt.dispatchEvent(new Event('input', { bubbles: true }));
+                            txt.dispatchEvent(new Event('change', { bubbles: true }));
+                            txt.style.border = '2px solid #22c55e';
+                            txt.style.backgroundColor = '#f0fdf4';
+
+                            if (!txt.parentElement.querySelector('.tk-badge-correct')) {
+                                const badge = document.createElement('span');
+                                badge.className = 'tk-badge-correct';
+                                badge.innerHTML = '✅ Prellenada';
+                                badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                txt.parentElement.appendChild(badge);
+                            }
+                            filledCount++;
+                        } else if (blank && blank.incorrect && blank.incorrect.length > 0) {
+                            txt.style.border = '2px solid #ef4444';
+                            txt.style.backgroundColor = '#fef2f2';
+
+                            if (!txt.parentElement.querySelector('.tk-badge-wrong')) {
+                                const badge = document.createElement('span');
+                                badge.className = 'tk-badge-wrong';
+                                badge.innerHTML = `❌ Intento anterior: "${blank.incorrect[0]}"`;
+                                badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                txt.parentElement.appendChild(badge);
+                            }
+                            struckCount++;
+                        }
+                    });
                 });
 
                 this.updatePanelAttemptStats(filledCount, struckCount);
@@ -756,6 +1014,12 @@
                     Object.values(data.questions).forEach(q => {
                         correctCount += (q.correct || []).length;
                         incorrectCount += (q.incorrect || []).length;
+                        if (q.blanks) {
+                            Object.values(q.blanks).forEach(b => {
+                                correctCount += (b.correct || []).length;
+                                incorrectCount += (b.incorrect || []).length;
+                            });
+                        }
                     });
                 }
                 return { questionCount, correctCount, incorrectCount };

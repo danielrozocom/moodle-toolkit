@@ -403,6 +403,14 @@
                 return this.normalizeText(raw);
             },
 
+            getOptionCopyText(optEl) {
+                if (!optEl) return '';
+                const clone = optEl.cloneNode(true);
+                clone.querySelectorAll('input, .icon, .feedback, .sr-only, .accesshide, .tk-badge-wrong, .tk-badge-correct, .tk-badge-review-correct, .tk-badge-review-incorrect, .tk-badge-deduced, script, style').forEach(el => el.remove());
+                const raw = clone.innerText || clone.textContent || '';
+                return raw.replace(/\s+/g, ' ').trim();
+            },
+
             parseRightAnswers(rightAnswerEl) {
                 if (!rightAnswerEl) return [];
                 let raw = rightAnswerEl.innerText || rightAnswerEl.textContent || '';
@@ -1332,7 +1340,7 @@
 
                 if (selectOptionGroups.length === 0 && origDrops.length > 0) {
                     const dragItems = Array.from(formulation.querySelectorAll('.draghome, .drag, [class*="dragitem"]'))
-                        .map(el => this.cleanOptionText(el))
+                        .map(el => this.getOptionCopyText(el))
                         .filter(t => t && t.length > 0);
                     const uniqueDragItems = Array.from(new Set(dragItems));
                     if (uniqueDragItems.length > 0) {
@@ -1349,7 +1357,7 @@
                         let choiceText = '\nOpciones:';
                         origAnswers.forEach(ans => {
                             const row = ans.closest('div[class*="r"], .form-check, li, tr') || ans.parentElement;
-                            const optText = this.cleanOptionText(row);
+                            const optText = this.getOptionCopyText(row);
                             const isChecked = ans.checked || ans.hasAttribute('checked');
                             choiceText += `\n  ${isChecked ? '[X]' : '[ ]'} ${optText}`;
                         });

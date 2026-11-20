@@ -330,19 +330,39 @@
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('cmid')) return urlParams.get('cmid');
 
-                const viewLink = document.querySelector('a[href*="/mod/quiz/view.php?id="]');
-                if (viewLink) {
-                    const m = viewLink.href.match(/[?&]id=(\d+)/);
+                // 1. From response form action or hidden inputs in attempt.php
+                const respForm = document.querySelector('form#responseform, form[action*="processattempt.php"], form[action*="attempt.php"]');
+                if (respForm) {
+                    const actionCmid = respForm.getAttribute('action')?.match(/[?&]cmid=(\d+)/);
+                    if (actionCmid) return actionCmid[1];
+                    const inputCmid = respForm.querySelector('input[name="cmid"]')?.value;
+                    if (inputCmid) return inputCmid;
+                }
+
+                // 2. From body class (Moodle standard: cmid-XXXXX)
+                const cmidClass = document.body?.className.match(/\bcmid-(\d+)\b/);
+                if (cmidClass && cmidClass[1]) return cmidClass[1];
+
+                // 3. From breadcrumb link (always points to current quiz view.php?id=...)
+                const breadcrumbLink = document.querySelector('.breadcrumb a[href*="/mod/quiz/view.php"], .breadcrumb-item a[href*="/mod/quiz/view.php"], nav[aria-label*="breadcrumb" i] a[href*="/mod/quiz/view.php"]');
+                if (breadcrumbLink) {
+                    const m = breadcrumbLink.href.match(/[?&]id=(\d+)/);
                     if (m) return m[1];
                 }
 
-                const cmidClass = document.body?.className.match(/cmid-(\d+)/);
-                if (cmidClass && cmidClass[1]) return cmidClass[1];
+                // 4. From active navigation item in drawer / course index
+                const activeNav = document.querySelector('.nav-link.active[href*="/mod/quiz/view.php"], .list-group-item.active[href*="/mod/quiz/view.php"], [aria-current="page"][href*="/mod/quiz/view.php"], .active[href*="/mod/quiz/view.php"]');
+                if (activeNav) {
+                    const m = activeNav.href.match(/[?&]id=(\d+)/);
+                    if (m) return m[1];
+                }
 
+                // 5. Any generic input[name="cmid"]
                 const cmidInput = document.querySelector('input[name="cmid"]');
                 if (cmidInput && cmidInput.value) return cmidInput.value;
 
-                const h1Text = document.querySelector('h1, h2, .page-header-headings')?.innerText?.trim();
+                // 6. Header title
+                const h1Text = document.querySelector('#page-header h1, .page-header-headings h1, h1, h2')?.innerText?.trim();
                 if (h1Text) return this.normalizeText(h1Text).substring(0, 40);
 
                 return 'default_quiz';
@@ -495,10 +515,31 @@
             getQuizData(quizId) {
                 const key = `${this.storagePrefix}${quizId}`;
                 try {
-                    return JSON.parse(localStorage.getItem(key) || '{}');
-                } catch (e) {
-                    return {};
-                }
+                    const data = JSON.parse(localStorage.getItem(key) || '{}');
+                    if (data && data.questions && Object.keys(data.questions).length > 0) {
+                        return data;
+                    }
+                } catch (e) { /* noop */ }
+
+                // Fallback: If quizId didn't match directly, search for any saved quiz with matching title
+                try {
+                    const currentTitle = this.normalizeText(document.querySelector('#page-header h1, .page-header-headings h1, h1, h2')?.innerText || '');
+                    if (currentTitle) {
+                        for (let i = 0; i < localStorage.length; i++) {
+                            const k = localStorage.key(i);
+                            if (k && k.startsWith(this.storagePrefix) && k !== key) {
+                                const d = JSON.parse(localStorage.getItem(k) || '{}');
+                                if (d && d.questions && Object.keys(d.questions).length > 0) {
+                                    if (d.title && (this.normalizeText(d.title) === currentTitle || this.matchText(this.normalizeText(d.title), currentTitle))) {
+                                        return d;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e) { /* noop */ }
+
+                return {};
             },
 
             saveQuizData(quizId, questionResults) {
@@ -507,6 +548,7 @@
                 if (!data.questions) data.questions = {};
                 data.lastUpdated = Date.now();
                 data.quizId = quizId;
+                data.title = document.querySelector('#page-header h1, .page-header-headings h1, h1, h2')?.innerText?.trim() || '';
 
                 questionResults.forEach(res => {
                     if (!res || !res.key) return;
@@ -1169,6 +1211,25 @@
                 if (!statEl) return;
                 const stats = this.getQuizStats();
                 const icons = UiModule.Icons;
+
+                if (stats.questionCount === 0) {
+                    const section = statEl.closest('.tk-section');
+                    if (section) {
+                        section.innerHTML = `
+                            <label class="tk-label">${icons.brain} Asistente de Quiz (Intento)</label>
+                            <div class="tk-stat-desc" style="margin-bottom:8px;">
+                                Sin respuestas memorizadas para este examen. Debes revisar un intento anterior para guardarlas.
+                            </div>
+                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
+                                ${icons.clipboard} Copiar preguntas del examen
+                            </button>
+                        `;
+                        const copyBtn = section.querySelector('#btn-tk-quiz-copy-all');
+                        if (copyBtn) copyBtn.onclick = () => QuizModule.copyAllQuizContent();
+                    }
+                    return;
+                }
+
                 statEl.innerHTML = `
                     <div class="tk-card">
                         <div class="tk-stat-header">
@@ -1197,26 +1258,55 @@
             formatQuestionForCopy(qEl) {
                 if (!qEl) return '';
                 const qNo = qEl.querySelector('.info .no, .info .qno')?.innerText?.trim() || 'Pregunta';
-                const qState = qEl.querySelector('.info .state')?.innerText?.trim() || '';
-                const qGrade = qEl.querySelector('.info .grade')?.innerText?.trim() || '';
 
                 const formulation = qEl.querySelector('.content .formulation') || qEl.querySelector('.content');
                 if (!formulation) return '';
                 const clone = formulation.cloneNode(true);
 
-                clone.querySelectorAll('script, style, .sr-only, .accesshide, .tk-badge-correct, .tk-badge-wrong, .tk-badge-review-correct, .tk-badge-review-incorrect, .tk-badge-deduced, .tk-audio-dl-btn, .tk-btn-copy-q').forEach(n => n.remove());
+                clone.querySelectorAll('script, style, .sr-only, .accesshide, .questionflag, .tk-badge-correct, .tk-badge-wrong, .tk-badge-review-correct, .tk-badge-review-incorrect, .tk-badge-deduced, .tk-audio-dl-btn, .tk-btn-copy-q').forEach(n => n.remove());
 
-                // Replace selects with [valor]
+                const isPlaceholder = (text) => {
+                    if (!text) return true;
+                    const t = text.trim();
+                    return /^(elegir|choose|seleccionar|select|\-\-\-)\b/i.test(t) || t === '___';
+                };
+
+                // Replace selects with [valor] & extract options
                 const origSelects = formulation.querySelectorAll('select');
                 const cloneSelects = clone.querySelectorAll('select');
-                cloneSelects.forEach((cSel, i) => {
-                    const oSel = origSelects[i];
+                const selectOptionGroups = [];
+
+                origSelects.forEach((oSel, i) => {
                     const selectedOpt = oSel?.options[oSel.selectedIndex];
-                    const val = selectedOpt?.text?.trim() || oSel?.value || '___';
-                    const span = document.createElement('span');
-                    span.textContent = ` [${val}] `;
-                    cSel.replaceWith(span);
+                    const rawVal = selectedOpt?.text?.trim() || oSel?.value || '';
+                    const val = isPlaceholder(rawVal) ? '___' : rawVal;
+                    const cSel = cloneSelects[i];
+                    if (cSel) {
+                        const span = document.createElement('span');
+                        span.textContent = ` [${val}] `;
+                        cSel.replaceWith(span);
+                    }
+
+                    const opts = Array.from(oSel.options)
+                        .map(o => o.text?.trim())
+                        .filter(t => t && !isPlaceholder(t));
+                    if (opts.length > 0) {
+                        selectOptionGroups.push({ index: i + 1, options: opts });
+                    }
                 });
+
+                let optionsText = '';
+                if (selectOptionGroups.length > 0) {
+                    const firstOpts = selectOptionGroups[0].options;
+                    const firstStr = JSON.stringify(firstOpts);
+                    const allSame = selectOptionGroups.every(g => JSON.stringify(g.options) === firstStr);
+
+                    if (allSame) {
+                        optionsText = '\nOpciones disponibles:\n' + firstOpts.map(opt => `  • ${opt}`).join('\n');
+                    } else {
+                        optionsText = '\nOpciones por casilla:\n' + selectOptionGroups.map(g => `  [Casilla ${g.index}]: ${g.options.join(' | ')}`).join('\n');
+                    }
+                }
 
                 // Replace text inputs with [valor]
                 const origInputs = formulation.querySelectorAll('input[type="text"]');
@@ -1229,7 +1319,7 @@
                     cInp.replaceWith(span);
                 });
 
-                // Replace drop zones with [valor]
+                // Replace drop zones with [valor] & extract draggable options if available
                 const origDrops = formulation.querySelectorAll('.dropzone, .drop.place, span[class*="place"]');
                 const cloneDrops = clone.querySelectorAll('.dropzone, .drop.place, span[class*="place"]');
                 cloneDrops.forEach((cDrp, i) => {
@@ -1239,6 +1329,17 @@
                     span.textContent = ` [${val}] `;
                     cDrp.replaceWith(span);
                 });
+
+                if (selectOptionGroups.length === 0 && origDrops.length > 0) {
+                    const dragItems = Array.from(formulation.querySelectorAll('.draghome, .drag, [class*="dragitem"]'))
+                        .map(el => this.cleanOptionText(el))
+                        .filter(t => t && t.length > 0);
+                    const uniqueDragItems = Array.from(new Set(dragItems));
+                    if (uniqueDragItems.length > 0) {
+                        clone.querySelectorAll('.drags, .draghomes, .dragitems, .draghome, .drag').forEach(n => n.remove());
+                        optionsText = '\nOpciones disponibles (arrastrables):\n' + uniqueDragItems.map(opt => `  • ${opt}`).join('\n');
+                    }
+                }
 
                 // Format choices for multichoice / truefalse
                 const origAnswers = formulation.querySelectorAll('.answer input[type="radio"], .answer input[type="checkbox"]');
@@ -1258,12 +1359,13 @@
 
                 const rightAnswer = qEl.querySelector('.rightanswer')?.innerText?.trim();
 
-                let output = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-                output += `${qNo}${qState ? ` (${qState})` : ''}${qGrade ? ` - ${qGrade}` : ''}\n`;
-                output += `──────────────────────────────────────────────────\n`;
+                let output = `${qNo}\n\n`;
                 output += `${clone.innerText.trim()}\n`;
+                if (optionsText) {
+                    output += `${optionsText}\n`;
+                }
                 if (rightAnswer) {
-                    output += `\n💡 ${rightAnswer}\n`;
+                    output += `\n${rightAnswer}\n`;
                 }
                 return output;
             },
@@ -1271,14 +1373,11 @@
             copyAllQuizContent() {
                 const questions = document.querySelectorAll('.que');
                 if (questions.length === 0) {
-                    alert('⚠️ No se detectaron preguntas en esta página para copiar.');
+                    alert('No se detectaron preguntas en esta página para copiar.');
                     return;
                 }
-                const title = document.querySelector('h1, h2, .page-header-headings')?.innerText?.trim() || 'Examen';
-                let fullText = `══════════════════════════════════════════════════\n`;
-                fullText += `📖 ${title.toUpperCase()}\n`;
-                fullText += `Total de preguntas en esta página: ${questions.length}\n`;
-                fullText += `══════════════════════════════════════════════════\n\n`;
+                const title = document.querySelector('#page-header h1, .page-header-headings h1, h1, h2')?.innerText?.trim() || 'Examen';
+                let fullText = `${title}\n\n`;
 
                 questions.forEach(qEl => {
                     fullText += this.formatQuestionForCopy(qEl) + `\n\n`;
@@ -1704,9 +1803,24 @@
                 }
 
                 if (flags.isQuizAttempt) {
+                    const stats = QuizModule.getQuizStats();
+                    const hasData = stats.questionCount > 0;
+
                     html += `
                         <div class="tk-section" style="border-top:none; padding-top:0;">
-                            <label class="tk-label">${this.Icons.brain} Asistente de Quiz (Intento)</label>
+                            <label class="tk-label">${this.Icons.brain} Asistente de Quiz (Intento)</label>`;
+
+                    if (!hasData) {
+                        html += `
+                            <div class="tk-stat-desc" style="margin-bottom:8px;">
+                                Sin respuestas memorizadas para este examen. Debes revisar un intento anterior para guardarlas.
+                            </div>
+                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
+                                ${this.Icons.clipboard} Copiar preguntas del examen
+                            </button>
+                        </div>`;
+                    } else {
+                        html += `
                             <div id="tk-quiz-attempt-stats" style="font-size:12px; color:#475569; margin-bottom:8px; line-height:1.4;">
                                 Cargando respuestas memorizadas...
                             </div>
@@ -1722,19 +1836,24 @@
                                 ${this.Icons.trash} Limpiar memoria
                             </button>
                         </div>`;
+                    }
                 }
 
                 if (flags.isQuizView && !flags.isQuizReview && !flags.isQuizAttempt) {
-                    html += `
-                        <div class="tk-section" style="border-top:none; padding-top:0;">
-                            <label class="tk-label">${this.Icons.brain} Asistente de Quiz</label>
-                            <div id="tk-quiz-view-stats" style="font-size:12px; color:#475569; margin-bottom:8px; line-height:1.4;">
-                                Memoria activa para este examen.
-                            </div>
-                            <button id="btn-tk-quiz-clear" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px;">
-                                ${this.Icons.trash} Limpiar memoria
-                            </button>
-                        </div>`;
+                    const stats = QuizModule.getQuizStats();
+                    const hasData = stats.questionCount > 0;
+                    if (hasData) {
+                        html += `
+                            <div class="tk-section" style="border-top:none; padding-top:0;">
+                                <label class="tk-label">${this.Icons.brain} Asistente de Quiz</label>
+                                <div id="tk-quiz-view-stats" style="font-size:12px; color:#475569; margin-bottom:8px; line-height:1.4;">
+                                    Memoria activa para este examen.
+                                </div>
+                                <button id="btn-tk-quiz-clear" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px;">
+                                    ${this.Icons.trash} Limpiar memoria
+                                </button>
+                            </div>`;
+                    }
                 }
 
                 if (flags.isLessonPage) {

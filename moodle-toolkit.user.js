@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM / Quiz)
 // @namespace   http://tampermonkey.net/
-// @version     7.1
+// @version     7.2
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra): Encuestas, SCORM, Auto-avance, Asistente de Quizzes/Exámenes, Copiador y Descargador de MP3.
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
@@ -1226,15 +1226,10 @@
                     if (section) {
                         section.innerHTML = `
                             <label class="tk-label">${icons.brain} Asistente de Quiz (Intento)</label>
-                            <div class="tk-stat-desc" style="margin-bottom:8px;">
+                            <div class="tk-stat-desc" style="margin-bottom:4px;">
                                 Sin respuestas memorizadas para este examen. Debes revisar un intento anterior para guardarlas.
                             </div>
-                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
-                                ${icons.clipboard} Copiar preguntas del examen
-                            </button>
                         `;
-                        const copyBtn = section.querySelector('#btn-tk-quiz-copy-all');
-                        if (copyBtn) copyBtn.onclick = () => QuizModule.copyAllQuizContent();
                     }
                     return;
                 }

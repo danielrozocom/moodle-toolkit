@@ -1700,6 +1700,8 @@
                     #moodle-toolkit-panel .tk-timer span { font-variant-numeric: tabular-nums; }
                     #moodle-toolkit-panel .tk-header-actions { display: flex; gap: 4px; }
                     #moodle-toolkit-panel.tk-minimized .tk-body { display: none; }
+                    #moodle-toolkit-panel.tk-minimized { cursor: pointer; }
+                    #moodle-toolkit-panel.tk-minimized:hover { border-color: #64748b; }
                     #moodle-toolkit-panel .tk-card {
                         background: #f8fafc; border: 1px solid #e2e8f0;
                         border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
@@ -1789,9 +1791,19 @@
                     </div>
                     <div class="tk-body">`;
 
-                if (flags.isQuizReview) {
+                const isQuizPage = flags.isQuizReview || flags.isQuizAttempt || (document.querySelectorAll('.que').length > 0);
+                if (isQuizPage) {
                     html += `
                         <div class="tk-section" style="border-top:none; padding-top:0;">
+                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:12px; height:32px; width:100%; display:flex; align-items:center; justify-content:center; gap:6px; font-weight:600;">
+                                ${this.Icons.clipboard} Copiar preguntas del examen
+                            </button>
+                        </div>`;
+                }
+
+                if (flags.isQuizReview) {
+                    html += `
+                        <div class="tk-section">
                             <label class="tk-label">${this.Icons.brain} Asistente de Quiz (Revisión)</label>
                             <div id="tk-quiz-review-stats" style="font-size:12px; color:#475569; margin-bottom:8px; line-height:1.4;">
                                 Analizando respuestas de la revisión...
@@ -1801,9 +1813,6 @@
                                     ${this.Icons.refresh} Re-escanear
                                 </button>
                             </div>
-                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; margin-bottom:6px; width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
-                                ${this.Icons.clipboard} Copiar preguntas del examen
-                            </button>
                             <button id="btn-tk-quiz-clear" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px;">
                                 ${this.Icons.trash} Limpiar memoria
                             </button>
@@ -1815,17 +1824,14 @@
                     const hasData = stats.questionCount > 0;
 
                     html += `
-                        <div class="tk-section" style="border-top:none; padding-top:0;">
+                        <div class="tk-section">
                             <label class="tk-label">${this.Icons.brain} Asistente de Quiz (Intento)</label>`;
 
                     if (!hasData) {
                         html += `
-                            <div class="tk-stat-desc" style="margin-bottom:8px;">
-                                Sin respuestas memorizadas para este examen. Debes revisar un intento anterior para guardarlas.
+                            <div class="tk-stat-desc" style="margin-bottom:4px;">
+                                Sin respuestas previas guardadas para este examen.
                             </div>
-                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
-                                ${this.Icons.clipboard} Copiar preguntas del examen
-                            </button>
                         </div>`;
                     } else {
                         html += `
@@ -1837,9 +1843,6 @@
                                     ${this.Icons.zap} Re-aplicar Respuestas
                                 </button>
                             </div>
-                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; margin-bottom:6px; width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
-                                ${this.Icons.clipboard} Copiar preguntas del examen
-                            </button>
                             <button id="btn-tk-quiz-clear" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px;">
                                 ${this.Icons.trash} Limpiar memoria
                             </button>
@@ -1902,7 +1905,7 @@
 
                 html += `</div>`;
                 panel.innerHTML = html;
-                if (localStorage.getItem('moodle_toolkit_minimized') === 'true') {
+                if (localStorage.getItem('moodle_toolkit_minimized') === 'true' && !flags.isQuizAttempt && !flags.isQuizReview) {
                     panel.classList.add('tk-minimized');
                 }
                 try {
@@ -2010,6 +2013,16 @@
                         const minimized = panel.classList.toggle('tk-minimized');
                         localStorage.setItem('moodle_toolkit_minimized', minimized ? 'true' : 'false');
                     };
+                }
+
+                if (header) {
+                    header.addEventListener('click', (e) => {
+                        if (e.target.closest('#close-toolkit-panel') || e.target.closest('#minimize-toolkit-panel')) return;
+                        if (panel?.classList.contains('tk-minimized')) {
+                            panel.classList.remove('tk-minimized');
+                            localStorage.setItem('moodle_toolkit_minimized', 'false');
+                        }
+                    });
                 }
             }
         };

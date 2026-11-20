@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM / Quiz)
 // @namespace   http://tampermonkey.net/
-// @version     7.2
+// @version     7.3
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra): Encuestas, SCORM, Auto-avance, Asistente de Quizzes/Exámenes, Copiador y Descargador de MP3.
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
@@ -1350,12 +1350,14 @@
                 if (origAnswers.length > 0) {
                     const answerBlock = clone.querySelector('.answer');
                     if (answerBlock) {
+                        const isReview = window.location.href.includes('/mod/quiz/review.php');
                         let choiceText = '\nOpciones:';
                         origAnswers.forEach(ans => {
                             const row = ans.closest('div[class*="r"], .form-check, li, tr') || ans.parentElement;
                             const optText = this.getOptionCopyText(row);
                             const isChecked = ans.checked || ans.hasAttribute('checked');
-                            choiceText += `\n  ${isChecked ? '[X]' : '[ ]'} ${optText}`;
+                            const marker = (isReview && isChecked) ? '[X]' : '[ ]';
+                            choiceText += `\n  ${marker} ${optText}`;
                         });
                         answerBlock.innerText = choiceText;
                     }

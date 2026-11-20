@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM / Quiz)
 // @namespace   http://tampermonkey.net/
-// @version     7.0
+// @version     7.1
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra): Encuestas, SCORM, Auto-avance, Asistente de Quizzes/Exámenes, Copiador y Descargador de MP3.
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
@@ -1615,9 +1615,10 @@
                     toggleBtn.type = 'button';
                     toggleBtn.style.cssText = `
                         display: inline-flex; align-items: center; justify-content: center;
-                        height: 24px; padding: 0 6px; font-size: 11px; font-weight: 500;
+                        height: 24px; min-height: 24px; padding: 0 4px; font-size: 10.5px; font-weight: 500;
                         border-radius: 6px; cursor: pointer; margin-top: 4px; font-family: inherit;
                         transition: all 0.15s ease; width: 100%; box-sizing: border-box; text-align: center;
+                        white-space: nowrap; line-height: 1; overflow: hidden;
                     `;
 
                     toggleBtn.onclick = (e) => {
@@ -1642,22 +1643,22 @@
                     const isNoRepeat = qEl.dataset.tkNoRepeat === 'true';
                     if (isNoRepeat) {
                         toggleBtn.innerHTML = `
-                            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                            <span>Sin repetir: SÍ</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px; flex-shrink:0;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            <span>No repetir</span>
                         `;
                         toggleBtn.style.background = '#eff6ff';
                         toggleBtn.style.border = '1px solid #93c5fd';
                         toggleBtn.style.color = '#1d4ed8';
-                        toggleBtn.title = 'Clic para PERMITIR repetir opciones en esta pregunta';
+                        toggleBtn.title = 'Modo actual: No repetir. Clic para PERMITIR repetir opciones en esta pregunta';
                     } else {
                         toggleBtn.innerHTML = `
-                            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
-                            <span>Repetir: SÍ</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px; flex-shrink:0;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+                            <span>Repetir</span>
                         `;
                         toggleBtn.style.background = '#f8fafc';
                         toggleBtn.style.border = '1px solid #cbd5e1';
                         toggleBtn.style.color = '#475569';
-                        toggleBtn.title = 'Clic para NO permitir repetir opciones en esta pregunta';
+                        toggleBtn.title = 'Modo actual: Repetir permitido. Clic para NO permitir repetir opciones en esta pregunta';
                     }
                 };
 

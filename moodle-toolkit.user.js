@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM / Quiz)
 // @namespace   http://tampermonkey.net/
-// @version     6.9
+// @version     7.0
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra): Encuestas, SCORM, Auto-avance, Asistente de Quizzes/Exámenes, Copiador y Descargador de MP3.
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
@@ -1478,6 +1478,32 @@
                 });
             },
 
+            restoreQuestion(qEl) {
+                if (!qEl) return;
+                const selects = Array.from(qEl.querySelectorAll('select'));
+                selects.forEach(sel => {
+                    if (sel._tkAllOptions && sel._tkAllOptions.length > 0) {
+                        sel._tkAllOptions.forEach(opt => {
+                            if (opt && opt.parentElement !== sel) {
+                                const origIdx = parseInt(opt.dataset.origIndex, 10);
+                                let nextSibling = null;
+                                for (let j = origIdx + 1; j < sel._tkAllOptions.length; j++) {
+                                    const candidate = sel._tkAllOptions[j];
+                                    if (candidate && candidate.parentElement === sel) {
+                                        nextSibling = candidate;
+                                        break;
+                                    }
+                                }
+                                sel.insertBefore(opt, nextSibling);
+                            }
+                            opt.disabled = false;
+                            opt.hidden = false;
+                            if (opt.dataset?.origText) opt.text = opt.dataset.origText;
+                        });
+                    }
+                });
+            },
+
             initQuestion(qEl) {
                 if (!qEl) return;
                 const allSelects = Array.from(qEl.querySelectorAll('select'));
@@ -1486,6 +1512,14 @@
                 // Exclude boolean (True/False) selects from deduplication
                 const selects = allSelects.filter(sel => !this.isBooleanSelect(sel));
                 if (selects.length < 2) return;
+
+                // Determine if repetition is required mathematically (e.g. 10 blanks, only 3 options)
+                const firstRealOpts = Array.from(selects[0].options).filter(o => !this.isPlaceholder(o));
+                const mustRepeat = firstRealOpts.length > 0 && firstRealOpts.length < selects.length;
+
+                if (!qEl.dataset.tkNoRepeat) {
+                    qEl.dataset.tkNoRepeat = mustRepeat ? 'false' : 'true';
+                }
 
                 // Cache original options reference, text and index
                 selects.forEach(sel => {
@@ -1502,6 +1536,10 @@
                 let isSyncing = false;
                 const sync = () => {
                     if (isSyncing) return;
+                    if (qEl.dataset.tkNoRepeat === 'false') {
+                        this.restoreQuestion(qEl);
+                        return;
+                    }
                     isSyncing = true;
                     try {
                         // 1. Collect all non-placeholder options selected across all dropdowns in this question
@@ -1567,6 +1605,63 @@
                         isSyncing = false;
                     }
                 };
+
+                // Inject per-question toggle button in .info
+                const infoContainer = qEl.querySelector('.info') || qEl.querySelector('.content') || qEl;
+                let toggleBtn = infoContainer.querySelector('.tk-btn-toggle-norepeat');
+                if (!toggleBtn) {
+                    toggleBtn = document.createElement('button');
+                    toggleBtn.className = 'tk-btn-toggle-norepeat';
+                    toggleBtn.type = 'button';
+                    toggleBtn.style.cssText = `
+                        display: inline-flex; align-items: center; justify-content: center;
+                        height: 24px; padding: 0 6px; font-size: 11px; font-weight: 500;
+                        border-radius: 6px; cursor: pointer; margin-top: 4px; font-family: inherit;
+                        transition: all 0.15s ease; width: 100%; box-sizing: border-box; text-align: center;
+                    `;
+
+                    toggleBtn.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const current = qEl.dataset.tkNoRepeat === 'true';
+                        const next = !current;
+                        qEl.dataset.tkNoRepeat = next ? 'true' : 'false';
+                        updateBtnUi();
+                        if (next) {
+                            sync();
+                        } else {
+                            this.restoreQuestion(qEl);
+                        }
+                    };
+
+                    infoContainer.appendChild(toggleBtn);
+                }
+
+                const updateBtnUi = () => {
+                    if (!toggleBtn) return;
+                    const isNoRepeat = qEl.dataset.tkNoRepeat === 'true';
+                    if (isNoRepeat) {
+                        toggleBtn.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            <span>Sin repetir: SÍ</span>
+                        `;
+                        toggleBtn.style.background = '#eff6ff';
+                        toggleBtn.style.border = '1px solid #93c5fd';
+                        toggleBtn.style.color = '#1d4ed8';
+                        toggleBtn.title = 'Clic para PERMITIR repetir opciones en esta pregunta';
+                    } else {
+                        toggleBtn.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+                            <span>Repetir: SÍ</span>
+                        `;
+                        toggleBtn.style.background = '#f8fafc';
+                        toggleBtn.style.border = '1px solid #cbd5e1';
+                        toggleBtn.style.color = '#475569';
+                        toggleBtn.title = 'Clic para NO permitir repetir opciones en esta pregunta';
+                    }
+                };
+
+                updateBtnUi();
 
                 // Bind events to each select exactly once
                 selects.forEach(sel => {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM / Quiz)
 // @namespace   http://tampermonkey.net/
-// @version     6.6
+// @version     6.8
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra): Encuestas, SCORM, Auto-avance, Asistente de Quizzes/Exámenes, Copiador y Descargador de MP3.
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
@@ -1083,6 +1083,7 @@
                 });
 
                 this.updatePanelAttemptStats(filledCount, struckCount);
+                MatchingHelperModule.observe();
                 return { filledCount, struckCount };
             },
 
@@ -1448,6 +1449,184 @@
 
                     info.appendChild(copyBtn);
                 });
+            }
+        };
+
+        const MatchingHelperModule = {
+            _observer: null,
+
+            normalize(text) {
+                return (text || '')
+                    .toLowerCase()
+                    .replace(/\s+/g, ' ')
+                    .replace(/^[⛔🚫❌]\s*/, '')
+                    .replace(/\s*\(ya\s*(usado|seleccionado).*?\)$/i, '')
+                    .trim();
+            },
+
+            isPlaceholder(opt) {
+                if (!opt) return true;
+                const v = String(opt.value ?? '').trim();
+                const t = this.normalize(opt.dataset?.origText || opt.text || '');
+                return v === '' || v === '0' || /^(elegir|choose|seleccionar|select|\-\-\-)\b/i.test(t);
+            },
+
+            isBooleanSelect(sel) {
+                const realOpts = Array.from(sel.options).filter(o => !this.isPlaceholder(o));
+                if (realOpts.length === 0 || realOpts.length > 3) return false;
+                return realOpts.every(o => {
+                    const t = this.normalize(o.dataset?.origText || o.text || '');
+                    return /^(true|false|verdadero|falso|si|sí|no|yes|v|f)$/i.test(t);
+                });
+            },
+
+            initQuestion(qEl) {
+                const allSelects = Array.from(qEl.querySelectorAll('select'));
+                if (allSelects.length < 2) return;
+
+                // Exclude boolean (True/False) selects from deduplication
+                const selects = allSelects.filter(sel => !this.isBooleanSelect(sel));
+                if (selects.length < 2) return;
+
+                // Cache original options reference, text and index
+                selects.forEach(sel => {
+                    if (!sel._tkAllOptions) {
+                        sel._tkAllOptions = Array.from(sel.options).map((opt, idx) => {
+                            if (!opt.dataset.origText) opt.dataset.origText = opt.text.trim();
+                            opt.dataset.origValue = opt.value;
+                            opt.dataset.origIndex = idx;
+                            return opt;
+                        });
+                    }
+                });
+
+                const sync = () => {
+                    // 1. Collect all non-placeholder options selected across all dropdowns in this question
+                    const usedEntries = [];
+                    selects.forEach(sel => {
+                        const opt = sel.options[sel.selectedIndex];
+                        if (opt && !this.isPlaceholder(opt)) {
+                            const val = String(sel.value || '').trim();
+                            const normText = this.normalize(opt.dataset?.origText || opt.text);
+                            usedEntries.push({ sel, value: val, normText });
+                        }
+                    });
+
+                    // 2. For each select, remove options picked elsewhere; restore options no longer picked
+                    selects.forEach(sel => {
+                        const otherUsedValues = new Set();
+                        const otherUsedTexts = new Set();
+
+                        usedEntries.forEach(entry => {
+                            if (entry.sel !== sel) {
+                                if (entry.value) otherUsedValues.add(entry.value);
+                                if (entry.normText) otherUsedTexts.add(entry.normText);
+                            }
+                        });
+
+                        const currentVal = String(sel.value || '').trim();
+
+                        (sel._tkAllOptions || []).forEach(opt => {
+                            if (this.isPlaceholder(opt)) return; // Keep "Elegir..." always visible
+
+                            const optVal = String(opt.value || '').trim();
+                            const optNormText = this.normalize(opt.dataset?.origText || opt.text);
+
+                            const isSelectedHere = (optVal === currentVal && currentVal !== '' && currentVal !== '0');
+                            const isUsedElsewhere = otherUsedValues.has(optVal) || otherUsedTexts.has(optNormText);
+
+                            if (isUsedElsewhere && !isSelectedHere) {
+                                // Physically remove option from dropdown so user cannot see or pick it
+                                if (opt.parentElement === sel) {
+                                    sel.removeChild(opt);
+                                }
+                            } else {
+                                // Restore option at its original position if it was removed
+                                if (opt.parentElement !== sel) {
+                                    const origIdx = parseInt(opt.dataset.origIndex, 10);
+                                    let nextSibling = null;
+                                    for (let j = origIdx + 1; j < sel._tkAllOptions.length; j++) {
+                                        if (sel._tkAllOptions[j].parentElement === sel) {
+                                            nextSibling = sel._tkAllOptions[j];
+                                            break;
+                                        }
+                                    }
+                                    sel.insertBefore(opt, nextSibling);
+                                }
+                                opt.disabled = false;
+                                opt.hidden = false;
+                                opt.text = opt.dataset.origText;
+                            }
+                        });
+                    });
+                };
+
+                // Bind events to each select
+                selects.forEach(sel => {
+                    if (!sel.dataset.tkMatchingBound) {
+                        sel.dataset.tkMatchingBound = 'true';
+                        sel.addEventListener('change', sync);
+                        sel.addEventListener('input', sync);
+                        sel.addEventListener('focus', sync);
+                        sel.addEventListener('mousedown', sync);
+                    }
+                });
+
+                // Run sync immediately
+                sync();
+            },
+
+            restoreAll() {
+                document.querySelectorAll('select').forEach(sel => {
+                    if (sel._tkAllOptions && sel._tkAllOptions.length > 0) {
+                        sel._tkAllOptions.forEach(opt => {
+                            if (opt.parentElement !== sel) {
+                                const origIdx = parseInt(opt.dataset.origIndex, 10);
+                                let nextSibling = null;
+                                for (let j = origIdx + 1; j < sel._tkAllOptions.length; j++) {
+                                    if (sel._tkAllOptions[j].parentElement === sel) {
+                                        nextSibling = sel._tkAllOptions[j];
+                                        break;
+                                    }
+                                }
+                                sel.insertBefore(opt, nextSibling);
+                            }
+                        });
+                    }
+                });
+            },
+
+            observe() {
+                const scan = () => {
+                    const questions = document.querySelectorAll('.que');
+                    if (questions.length > 0) {
+                        questions.forEach(qEl => this.initQuestion(qEl));
+                    } else {
+                        this.initQuestion(document.body);
+                    }
+                };
+
+                scan();
+
+                let count = 0;
+                const interval = setInterval(() => {
+                    scan();
+                    count++;
+                    if (count > 8) clearInterval(interval);
+                }, 500);
+
+                if (!this._observer && window.MutationObserver) {
+                    this._observer = new MutationObserver(() => scan());
+                    this._observer.observe(document.body, { childList: true, subtree: true });
+                }
+
+                if (!window._tkRestoreBound) {
+                    window._tkRestoreBound = true;
+                    window.addEventListener('beforeunload', () => this.restoreAll());
+                    document.querySelectorAll('form').forEach(form => {
+                        form.addEventListener('submit', () => this.restoreAll());
+                    });
+                }
             }
         };
 
@@ -2075,6 +2254,7 @@
 
                 QuizModule.injectQuestionCopyButtons();
                 AudioModule.observe();
+                MatchingHelperModule.observe();
             };
 
             if (document.readyState === 'complete' || document.readyState === 'interactive') {
@@ -2084,7 +2264,7 @@
             }
         }
 
-        return { init, State, AutoAdvanceModule, QuizModule, AudioModule };
+        return { init, State, AutoAdvanceModule, QuizModule, AudioModule, MatchingHelperModule };
     })();
 
     MoodleToolkit.init();

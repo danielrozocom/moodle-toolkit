@@ -6,7 +6,9 @@ Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra),
 
 ## Características
 
-- **Asistente inteligente de Quizzes / Exámenes** — memoriza automáticamente las respuestas correctas e incorrectas de revisiones previas (`/mod/quiz/review.php`). Al ingresar a un nuevo intento (`/mod/quiz/attempt.php`), pre-llena automáticamente las preguntas correctas y tacha con alerta visual las opciones que quedaron mal en el intento anterior para evitar volverlas a marcar.
+- **Asistente inteligente de Quizzes / Exámenes** — memoriza automáticamente las respuestas de revisiones previas (`/mod/quiz/review.php`): selección múltiple, verdadero/falso, menús desplegables (`<select>`), casillas de audio/texto (`cloze/multianswer`) y **arrastrar y soltar (Drag and Drop: `ddwtos`, `ddimageortext`, `ddmarker`)**. En un nuevo intento (`/mod/quiz/attempt.php`), pre-llena automáticamente las casillas correctas y tacha con alerta visual las opciones que quedaron mal. Panel con métricas claras diferenciando el número de preguntas del total de casillas/ítems individuales.
+- **Copiado inteligente de preguntas y contenido** — botón global en el panel ("📋 Copiar preguntas del examen") y botón individual en cada pregunta (`.que`) para copiar todo el contenido al portapapeles. Rellena automáticamente los espacios vacíos y desplegables con sus valores actuales (`[valor]`) y formatea las opciones de respuesta (`[X] / [ ]`).
+- **Descargador de audios MP3 integrado** — inyecta automáticamente un botón "Descargar MP3" junto a reproductores de audio Moodle / VideoJS para descargar directamente el archivo multimedia con un clic (sin abrir pestañas adicionales ni reproductores bloqueados).
 - **Calificador masivo inteligente** — marca respuestas en encuestas/feedback de Moodle y BanWeb con la nota seleccionada (1 a 5).
 - **Automatizador de tiempo / anti-inactividad** — detecta el tiempo mínimo requerido, mantiene la sesión activa y cuenta regresiva en pantalla.
 - **Completar SCORM** — fuerza el estado `completed`/`passed` y puntuación 100 en la API SCORM detectada (SCORM 1.2 y 2004).

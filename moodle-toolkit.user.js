@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM / Quiz)
 // @namespace   http://tampermonkey.net/
-// @version     6.1
-// @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra): Encuestas, SCORM, Auto-avance y Asistente de Quizzes/Exámenes.
+// @version     6.3
+// @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra): Encuestas, SCORM, Auto-avance, Asistente de Quizzes/Exámenes, Copiador y Descargador de MP3.
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
 // @match       https://virtual.unipiloto.edu.co/*
@@ -711,6 +711,33 @@
                         }
                     });
 
+                    // 4. SCAN DRAG AND DROP (ddwtos, ddimageortext, ddmarker)
+                    const dropZones = Array.from(qEl.querySelectorAll('.dropzone, .drop.place, span.place, span[class*="place"]')).filter(el => {
+                        return !el.classList.contains('draghome') && !el.classList.contains('drag');
+                    });
+                    dropZones.forEach((dz, i) => {
+                        const pMatch = dz.className.match(/\bplace(\d+)\b/);
+                        const placeNum = pMatch ? pMatch[1] : (i + 1).toString();
+                        const bKey = `dd_p${placeNum}`;
+
+                        const placedEl = dz.querySelector('.draghome, .drag, .choice, span') || dz;
+                        const droppedText = this.cleanOptionText(placedEl);
+
+                        const hiddenInput = qEl.querySelector(`input[name$="_p${placeNum}"], input.place${placeNum}`);
+                        const choiceVal = hiddenInput?.value || '';
+
+                        const state = this.getInputFeedbackState(dz, qEl);
+                        if (state === 'correct' && droppedText) {
+                            blanks[bKey] = { type: 'dd', key: bKey, placeNum, index: i, correct: [droppedText], incorrect: [], choiceVal };
+                            this.markReviewBlankUI(dz, 'correct');
+                            totalCorrect++;
+                        } else if (state === 'incorrect' && droppedText) {
+                            blanks[bKey] = { type: 'dd', key: bKey, placeNum, index: i, correct: [], incorrect: [droppedText], choiceVal };
+                            this.markReviewBlankUI(dz, 'incorrect');
+                            totalIncorrect++;
+                        }
+                    });
+
                     totalCorrect += correctList.size;
                     totalIncorrect += incorrectList.size;
 
@@ -922,6 +949,87 @@
                             struckCount++;
                         }
                     });
+
+                    // 4. APPLY DRAG AND DROP (ddwtos, ddimageortext, ddmarker)
+                    const dropZones = Array.from(qEl.querySelectorAll('.dropzone, .drop.place, span.place, span[class*="place"]')).filter(el => {
+                        return !el.classList.contains('draghome') && !el.classList.contains('drag');
+                    });
+                    dropZones.forEach((dz, i) => {
+                        const pMatch = dz.className.match(/\bplace(\d+)\b/);
+                        const placeNum = pMatch ? pMatch[1] : (i + 1).toString();
+                        const bKey = `dd_p${placeNum}`;
+                        const blank = record.blanks?.[bKey] || this.findBlankRecord(record, dz, i);
+                        if (!blank) return;
+
+                        const dragChoices = Array.from(qEl.querySelectorAll('.draghome, .drag, [class*="choice"]'));
+
+                        // Case A: Correct choice known
+                        if (blank.correct && blank.correct.length > 0) {
+                            const targetText = blank.correct[0];
+                            const matchChoice = dragChoices.find(c => this.matchOption(this.cleanOptionText(c), targetText));
+
+                            // Update hidden input if present
+                            const hiddenInput = qEl.querySelector(`input[name$="_p${placeNum}"], input.place${placeNum}`);
+                            if (hiddenInput) {
+                                const cMatch = matchChoice?.className.match(/\bchoice(\d+)\b/);
+                                const cVal = cMatch ? cMatch[1] : (matchChoice?.dataset.choice || matchChoice?.dataset.dragNo || blank.choiceVal);
+                                if (cVal) {
+                                    hiddenInput.value = cVal;
+                                    hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                    hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                }
+                            }
+
+                            // Trigger click-to-place / drag-and-drop accessibility events
+                            if (matchChoice) {
+                                matchChoice.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                                matchChoice.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                                dz.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                                dz.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+                                matchChoice.style.opacity = '0.55';
+                                matchChoice.style.border = '2px solid #22c55e';
+                            }
+
+                            dz.style.border = '2px solid #22c55e';
+                            dz.style.backgroundColor = '#f0fdf4';
+                            dz.style.borderRadius = '4px';
+
+                            if (!dz.parentElement.querySelector(`.tk-badge-dd-${placeNum}`)) {
+                                const badge = document.createElement('span');
+                                badge.className = `tk-badge-correct tk-badge-dd-${placeNum}`;
+                                badge.innerHTML = `✅ [${targetText}]`;
+                                badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                dz.parentElement.appendChild(badge);
+                            }
+                            filledCount++;
+                        }
+
+                        // Case B: Incorrect choice known
+                        if (blank.incorrect && blank.incorrect.length > 0) {
+                            const wrongText = blank.incorrect[0];
+                            const wrongChoice = dragChoices.find(c => this.matchOption(this.cleanOptionText(c), wrongText));
+
+                            if (wrongChoice) {
+                                wrongChoice.style.textDecoration = 'line-through 2px #dc2626';
+                                wrongChoice.style.color = '#dc2626';
+                                wrongChoice.style.background = '#fee2e2';
+                                wrongChoice.title = `Incorrecta para casilla ${placeNum} en el intento anterior`;
+                            }
+
+                            dz.style.border = '2px dashed #ef4444';
+                            dz.style.backgroundColor = '#fef2f2';
+
+                            if (!dz.parentElement.querySelector(`.tk-badge-dd-wrong-${placeNum}`)) {
+                                const badge = document.createElement('span');
+                                badge.className = `tk-badge-wrong tk-badge-dd-wrong-${placeNum}`;
+                                badge.innerHTML = `❌ Casilla ${placeNum}: NO va "${wrongText}"`;
+                                badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                dz.parentElement.appendChild(badge);
+                            }
+                            struckCount++;
+                        }
+                    });
                 });
 
                 this.updatePanelAttemptStats(filledCount, struckCount);
@@ -1022,7 +1130,8 @@
                         }
                     });
                 }
-                return { questionCount, correctCount, incorrectCount };
+                const totalItems = correctCount + incorrectCount;
+                return { questionCount, correctCount, incorrectCount, totalItems };
             },
 
             updatePanelReviewStats(data) {
@@ -1030,10 +1139,24 @@
                 if (!statEl) return;
                 const stats = this.getQuizStats();
                 statEl.innerHTML = `
-                    <div style="display:flex; flex-direction:column; gap:4px;">
-                        <span>📝 <b>${stats.questionCount}</b> preguntas registradas</span>
-                        <span style="color:#15803d;">✅ <b>${stats.correctCount}</b> respuestas correctas guardadas</span>
-                        <span style="color:#b91c1c;">❌ <b>${stats.incorrectCount}</b> opciones incorrectas guardadas</span>
+                    <div class="tk-card">
+                        <div style="font-weight:600; color:#0f172a; margin-bottom:2px; display:flex; align-items:center; justify-content:space-between;">
+                            <span>📋 <b>${stats.questionCount}</b> Preguntas</span>
+                            <span style="background:#e0f2fe; color:#0369a1; font-size:11px; padding:2px 7px; border-radius:10px; font-weight:600;">
+                                ${stats.totalItems} casillas / ítems
+                            </span>
+                        </div>
+                        <div style="color:#64748b; font-size:11px; line-height:1.3;">
+                            Total de preguntas y casillas analizadas en la prueba.
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px; padding:0 2px;">
+                        <span style="color:#15803d; font-weight:600;">
+                            ✅ <b>${stats.correctCount}</b> casillas correctas guardadas
+                        </span>
+                        <span style="color:#b91c1c; font-weight:600;">
+                            ❌ <b>${stats.incorrectCount}</b> casillas a corregir (tachadas)
+                        </span>
                     </div>
                 `;
             },
@@ -1041,12 +1164,273 @@
             updatePanelAttemptStats(filledCount, struckCount) {
                 const statEl = document.getElementById('tk-quiz-attempt-stats');
                 if (!statEl) return;
+                const stats = this.getQuizStats();
                 statEl.innerHTML = `
-                    <div style="display:flex; flex-direction:column; gap:4px;">
-                        <span style="color:#15803d;">✅ <b>${filledCount}</b> respuestas prellenadas</span>
-                        <span style="color:#b91c1c;">❌ <b>${struckCount}</b> opciones incorrectas tachadas</span>
+                    <div class="tk-card">
+                        <div style="font-weight:600; color:#0f172a; margin-bottom:2px; display:flex; align-items:center; justify-content:space-between;">
+                            <span>📋 <b>${stats.questionCount}</b> Preguntas</span>
+                            <span style="background:#e0f2fe; color:#0369a1; font-size:11px; padding:2px 7px; border-radius:10px; font-weight:600;">
+                                ${stats.totalItems} casillas
+                            </span>
+                        </div>
+                        <div style="color:#64748b; font-size:11px; line-height:1.3;">
+                            Respuestas aplicadas de intentos anteriores.
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px; padding:0 2px;">
+                        <span style="color:#15803d; font-weight:600;">
+                            ✅ <b>${filledCount}</b> casillas prellenadas automáticamente
+                        </span>
+                        <span style="color:#b91c1c; font-weight:600;">
+                            ❌ <b>${struckCount}</b> opciones incorrectas tachadas
+                        </span>
                     </div>
                 `;
+            },
+
+            formatQuestionForCopy(qEl) {
+                if (!qEl) return '';
+                const qNo = qEl.querySelector('.info .no, .info .qno')?.innerText?.trim() || 'Pregunta';
+                const qState = qEl.querySelector('.info .state')?.innerText?.trim() || '';
+                const qGrade = qEl.querySelector('.info .grade')?.innerText?.trim() || '';
+
+                const formulation = qEl.querySelector('.content .formulation') || qEl.querySelector('.content');
+                if (!formulation) return '';
+                const clone = formulation.cloneNode(true);
+
+                clone.querySelectorAll('script, style, .sr-only, .accesshide, .tk-badge-correct, .tk-badge-wrong, .tk-badge-review-correct, .tk-badge-review-incorrect, .tk-badge-deduced, .tk-audio-dl-btn, .tk-btn-copy-q').forEach(n => n.remove());
+
+                // Replace selects with [valor]
+                const origSelects = formulation.querySelectorAll('select');
+                const cloneSelects = clone.querySelectorAll('select');
+                cloneSelects.forEach((cSel, i) => {
+                    const oSel = origSelects[i];
+                    const selectedOpt = oSel?.options[oSel.selectedIndex];
+                    const val = selectedOpt?.text?.trim() || oSel?.value || '___';
+                    const span = document.createElement('span');
+                    span.textContent = ` [${val}] `;
+                    cSel.replaceWith(span);
+                });
+
+                // Replace text inputs with [valor]
+                const origInputs = formulation.querySelectorAll('input[type="text"]');
+                const cloneInputs = clone.querySelectorAll('input[type="text"]');
+                cloneInputs.forEach((cInp, i) => {
+                    const oInp = origInputs[i];
+                    const val = oInp?.value?.trim() || '___';
+                    const span = document.createElement('span');
+                    span.textContent = ` [${val}] `;
+                    cInp.replaceWith(span);
+                });
+
+                // Replace drop zones with [valor]
+                const origDrops = formulation.querySelectorAll('.dropzone, .drop.place, span[class*="place"]');
+                const cloneDrops = clone.querySelectorAll('.dropzone, .drop.place, span[class*="place"]');
+                cloneDrops.forEach((cDrp, i) => {
+                    const oDrp = origDrops[i];
+                    const val = oDrp?.innerText?.trim() || '___';
+                    const span = document.createElement('span');
+                    span.textContent = ` [${val}] `;
+                    cDrp.replaceWith(span);
+                });
+
+                // Format choices for multichoice / truefalse
+                const origAnswers = formulation.querySelectorAll('.answer input[type="radio"], .answer input[type="checkbox"]');
+                if (origAnswers.length > 0) {
+                    const answerBlock = clone.querySelector('.answer');
+                    if (answerBlock) {
+                        let choiceText = '\nOpciones:';
+                        origAnswers.forEach(ans => {
+                            const row = ans.closest('div[class*="r"], .form-check, li, tr') || ans.parentElement;
+                            const optText = this.cleanOptionText(row);
+                            const isChecked = ans.checked || ans.hasAttribute('checked');
+                            choiceText += `\n  ${isChecked ? '[X]' : '[ ]'} ${optText}`;
+                        });
+                        answerBlock.innerText = choiceText;
+                    }
+                }
+
+                const rightAnswer = qEl.querySelector('.rightanswer')?.innerText?.trim();
+
+                let output = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+                output += `${qNo}${qState ? ` (${qState})` : ''}${qGrade ? ` - ${qGrade}` : ''}\n`;
+                output += `──────────────────────────────────────────────────\n`;
+                output += `${clone.innerText.trim()}\n`;
+                if (rightAnswer) {
+                    output += `\n💡 ${rightAnswer}\n`;
+                }
+                return output;
+            },
+
+            copyAllQuizContent() {
+                const questions = document.querySelectorAll('.que');
+                if (questions.length === 0) {
+                    alert('⚠️ No se detectaron preguntas en esta página para copiar.');
+                    return;
+                }
+                const title = document.querySelector('h1, h2, .page-header-headings')?.innerText?.trim() || 'Examen';
+                let fullText = `══════════════════════════════════════════════════\n`;
+                fullText += `📖 ${title.toUpperCase()}\n`;
+                fullText += `Total de preguntas en esta página: ${questions.length}\n`;
+                fullText += `══════════════════════════════════════════════════\n\n`;
+
+                questions.forEach(qEl => {
+                    fullText += this.formatQuestionForCopy(qEl) + `\n\n`;
+                });
+
+                navigator.clipboard.writeText(fullText).then(() => {
+                    alert(`📋 ¡Listo! Se copiaron ${questions.length} preguntas al portapapeles con todas sus respuestas y valores.`);
+                }).catch(() => {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = fullText;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    textarea.remove();
+                    alert(`📋 ¡Listo! Se copiaron ${questions.length} preguntas al portapapeles.`);
+                });
+            },
+
+            injectQuestionCopyButtons() {
+                const questions = document.querySelectorAll('.que');
+                questions.forEach(qEl => {
+                    const info = qEl.querySelector('.info');
+                    if (!info || info.querySelector('.tk-btn-copy-q')) return;
+
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = 'tk-btn-copy-q';
+                    copyBtn.type = 'button';
+                    copyBtn.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px;"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                        <span>Copiar</span>
+                    `;
+                    copyBtn.title = 'Copiar esta pregunta completa con sus valores al portapapeles';
+                    copyBtn.style.cssText = `
+                        display: inline-flex; align-items: center; justify-content: center;
+                        height: 24px; padding: 0 8px; font-size: 11px; font-weight: 500;
+                        color: #475569; background: #ffffff; border: 1px solid #cbd5e1;
+                        border-radius: 6px; cursor: pointer; margin-top: 6px; font-family: inherit;
+                        transition: all 0.15s ease; width: 100%; box-sizing: border-box;
+                    `;
+                    copyBtn.onmouseenter = () => { copyBtn.style.background = '#f1f5f9'; copyBtn.style.color = '#0f172a'; };
+                    copyBtn.onmouseleave = () => { copyBtn.style.background = '#ffffff'; copyBtn.style.color = '#475569'; };
+
+                    copyBtn.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const text = this.formatQuestionForCopy(qEl);
+                        navigator.clipboard.writeText(text).then(() => {
+                            copyBtn.innerHTML = `✅ <span>¡Copiada!</span>`;
+                            setTimeout(() => {
+                                copyBtn.innerHTML = `
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px;"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                                    <span>Copiar</span>
+                                `;
+                            }, 1500);
+                        });
+                    };
+
+                    info.appendChild(copyBtn);
+                });
+            }
+        };
+
+        const AudioModule = {
+            injectDownloadButtons() {
+                const audioEls = document.querySelectorAll('audio, .video-js.vjs-audio, .mediaplugin_audio, [data-region*="mediaplugin"]');
+                audioEls.forEach(audioContainer => {
+                    if (audioContainer.dataset.tkAudioDlInjected) return;
+
+                    let audioSrc = '';
+                    if (audioContainer.tagName === 'AUDIO') {
+                        audioSrc = audioContainer.src || audioContainer.currentSrc || audioContainer.querySelector('source')?.src;
+                    } else {
+                        const audio = audioContainer.querySelector('audio');
+                        audioSrc = audio?.src || audio?.currentSrc || audio?.querySelector('source')?.src;
+                        if (!audioSrc) {
+                            const a = audioContainer.querySelector('a[href*=".mp3"], a[href*="pluginfile.php"]');
+                            audioSrc = a?.href;
+                        }
+                    }
+
+                    if (!audioSrc) return;
+                    audioContainer.dataset.tkAudioDlInjected = 'true';
+
+                    const targetContainer = audioContainer.closest('.video-js, .mediaplugin, .mediaplugin_audio') || audioContainer;
+
+                    let filename = 'audio.mp3';
+                    try {
+                        const u = new URL(audioSrc, window.location.href);
+                        const parts = u.pathname.split('/');
+                        const last = parts[parts.length - 1];
+                        if (last && (last.endsWith('.mp3') || last.endsWith('.m4a') || last.endsWith('.wav') || last.endsWith('.ogg'))) {
+                            filename = decodeURIComponent(last);
+                        }
+                    } catch (e) { /* noop */ }
+
+                    const dlBtn = document.createElement('button');
+                    dlBtn.className = 'tk-audio-dl-btn';
+                    dlBtn.type = 'button';
+                    dlBtn.title = 'Descargar este archivo de audio MP3';
+                    dlBtn.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Descargar MP3</span>
+                    `;
+                    dlBtn.style.cssText = `
+                        display: inline-flex; align-items: center; justify-content: center;
+                        height: 28px; padding: 0 10px; font-size: 11px; font-weight: 600;
+                        color: #0f172a; background: #f1f5f9; border: 1px solid #cbd5e1;
+                        border-radius: 6px; cursor: pointer; margin: 6px 0; transition: all 0.15s ease;
+                        font-family: inherit; vertical-align: middle;
+                    `;
+                    dlBtn.onmouseenter = () => { dlBtn.style.background = '#e2e8f0'; dlBtn.style.borderColor = '#94a3b8'; };
+                    dlBtn.onmouseleave = () => { dlBtn.style.background = '#f1f5f9'; dlBtn.style.borderColor = '#cbd5e1'; };
+
+                    dlBtn.onclick = async (e) => {
+                        e.preventDefault();
+                        dlBtn.innerHTML = `⏳ <span>Descargando...</span>`;
+                        try {
+                            const response = await fetch(audioSrc, { credentials: 'include' });
+                            const blob = await response.blob();
+                            const blobUrl = URL.createObjectURL(blob);
+                            const tempA = document.createElement('a');
+                            tempA.href = blobUrl;
+                            tempA.download = filename;
+                            document.body.appendChild(tempA);
+                            tempA.click();
+                            tempA.remove();
+                            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+                            dlBtn.innerHTML = `✅ <span>¡Descargado!</span>`;
+                            setTimeout(() => {
+                                dlBtn.innerHTML = `
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                    <span>Descargar MP3</span>
+                                `;
+                            }, 2000);
+                        } catch (err) {
+                            window.open(audioSrc, '_blank');
+                            dlBtn.innerHTML = `<span>Descargar MP3</span>`;
+                        }
+                    };
+
+                    const parent = targetContainer.parentElement;
+                    if (parent) {
+                        const wrapperDiv = document.createElement('div');
+                        wrapperDiv.style.cssText = 'display:flex; align-items:center; gap:8px; margin: 4px 0 8px 0;';
+                        wrapperDiv.appendChild(dlBtn);
+                        targetContainer.insertAdjacentElement('afterend', wrapperDiv);
+                    }
+                });
+            },
+
+            observe() {
+                this.injectDownloadButtons();
+                let count = 0;
+                const interval = setInterval(() => {
+                    this.injectDownloadButtons();
+                    count++;
+                    if (count > 10) clearInterval(interval);
+                }, 1000);
             }
         };
 
@@ -1188,6 +1572,10 @@
                     #moodle-toolkit-panel .tk-timer span { font-variant-numeric: tabular-nums; }
                     #moodle-toolkit-panel .tk-header-actions { display: flex; gap: 4px; }
                     #moodle-toolkit-panel.tk-minimized .tk-body { display: none; }
+                    #moodle-toolkit-panel .tk-card {
+                        background: #f8fafc; border: 1px solid #e2e8f0;
+                        border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;
+                    }
                     .tk-badge-correct { background: #dcfce7 !important; color: #15803d !important; }
                     .tk-badge-wrong { background: #fee2e2 !important; color: #b91c1c !important; }
                     @media (prefers-color-scheme: dark) {
@@ -1205,6 +1593,7 @@
                         #moodle-toolkit-panel .tk-timer { background: #052e16; color: #86efac; border-color: #166534; }
                         #moodle-toolkit-panel .tk-section { border-top-color: #334155; }
                         #moodle-toolkit-panel .tk-label { color: #94a3b8; }
+                        #moodle-toolkit-panel .tk-card { background: #1e293b !important; border-color: #334155 !important; }
                         .tk-badge-correct { background: #052e16 !important; color: #86efac !important; }
                         .tk-badge-wrong { background: #450a0a !important; color: #fca5a5 !important; }
                         #tk-quiz-review-stats, #tk-quiz-attempt-stats, #tk-quiz-view-stats { color: #94a3b8 !important; }
@@ -1249,6 +1638,9 @@
                                     ${this.Icons.refresh} Re-escanear
                                 </button>
                             </div>
+                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; margin-bottom:6px; width:100%; display:flex; align-items:center; justify-content:center; gap:4px;">
+                                📋 Copiar preguntas del examen
+                            </button>
                             <button id="btn-tk-quiz-clear" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px;">
                                 ${this.Icons.trash} Limpiar memoria
                             </button>
@@ -1267,6 +1659,9 @@
                                     ${this.Icons.zap} Re-aplicar Respuestas
                                 </button>
                             </div>
+                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; margin-bottom:6px; width:100%; display:flex; align-items:center; justify-content:center; gap:4px;">
+                                📋 Copiar preguntas del examen
+                            </button>
                             <button id="btn-tk-quiz-clear" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px;">
                                 ${this.Icons.trash} Limpiar memoria
                             </button>
@@ -1389,6 +1784,11 @@
                     };
                 }
 
+                const copyAllBtn = document.getElementById('btn-tk-quiz-copy-all');
+                if (copyAllBtn) {
+                    copyAllBtn.onclick = () => QuizModule.copyAllQuizContent();
+                }
+
                 const closeBtn = document.getElementById('close-toolkit-panel');
                 if (closeBtn) closeBtn.onclick = () => document.getElementById(this.panelId)?.remove();
 
@@ -1467,6 +1867,9 @@
                         `;
                     }
                 }
+
+                QuizModule.injectQuestionCopyButtons();
+                AudioModule.observe();
             };
 
             if (document.readyState === 'complete' || document.readyState === 'interactive') {
@@ -1476,7 +1879,7 @@
             }
         }
 
-        return { init, State, AutoAdvanceModule, QuizModule };
+        return { init, State, AutoAdvanceModule, QuizModule, AudioModule };
     })();
 
     MoodleToolkit.init();

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Moodle Toolkit (Encuestas / Moodle / SCORM / Quiz)
 // @namespace   http://tampermonkey.net/
-// @version     6.8
+// @version     6.9
 // @description Herramientas inteligentes y adaptativas para Moodle (Virtual) y BanWeb (Tierra): Encuestas, SCORM, Auto-avance, Asistente de Quizzes/Exámenes, Copiador y Descargador de MP3.
 // @author      Daniel Josue Rozo Vargas - www.danielrozo.com
 // @icon        https://moodle.org/favicon.ico
@@ -1453,8 +1453,6 @@
         };
 
         const MatchingHelperModule = {
-            _observer: null,
-
             normalize(text) {
                 return (text || '')
                     .toLowerCase()
@@ -1481,6 +1479,7 @@
             },
 
             initQuestion(qEl) {
+                if (!qEl) return;
                 const allSelects = Array.from(qEl.querySelectorAll('select'));
                 if (allSelects.length < 2) return;
 
@@ -1500,68 +1499,76 @@
                     }
                 });
 
+                let isSyncing = false;
                 const sync = () => {
-                    // 1. Collect all non-placeholder options selected across all dropdowns in this question
-                    const usedEntries = [];
-                    selects.forEach(sel => {
-                        const opt = sel.options[sel.selectedIndex];
-                        if (opt && !this.isPlaceholder(opt)) {
-                            const val = String(sel.value || '').trim();
-                            const normText = this.normalize(opt.dataset?.origText || opt.text);
-                            usedEntries.push({ sel, value: val, normText });
-                        }
-                    });
-
-                    // 2. For each select, remove options picked elsewhere; restore options no longer picked
-                    selects.forEach(sel => {
-                        const otherUsedValues = new Set();
-                        const otherUsedTexts = new Set();
-
-                        usedEntries.forEach(entry => {
-                            if (entry.sel !== sel) {
-                                if (entry.value) otherUsedValues.add(entry.value);
-                                if (entry.normText) otherUsedTexts.add(entry.normText);
+                    if (isSyncing) return;
+                    isSyncing = true;
+                    try {
+                        // 1. Collect all non-placeholder options selected across all dropdowns in this question
+                        const usedEntries = [];
+                        selects.forEach(sel => {
+                            const opt = sel.options[sel.selectedIndex];
+                            if (opt && !this.isPlaceholder(opt)) {
+                                const val = String(sel.value || '').trim();
+                                const normText = this.normalize(opt.dataset?.origText || opt.text);
+                                usedEntries.push({ sel, value: val, normText });
                             }
                         });
 
-                        const currentVal = String(sel.value || '').trim();
+                        // 2. For each select, remove options picked elsewhere; restore options no longer picked
+                        selects.forEach(sel => {
+                            const otherUsedValues = new Set();
+                            const otherUsedTexts = new Set();
 
-                        (sel._tkAllOptions || []).forEach(opt => {
-                            if (this.isPlaceholder(opt)) return; // Keep "Elegir..." always visible
-
-                            const optVal = String(opt.value || '').trim();
-                            const optNormText = this.normalize(opt.dataset?.origText || opt.text);
-
-                            const isSelectedHere = (optVal === currentVal && currentVal !== '' && currentVal !== '0');
-                            const isUsedElsewhere = otherUsedValues.has(optVal) || otherUsedTexts.has(optNormText);
-
-                            if (isUsedElsewhere && !isSelectedHere) {
-                                // Physically remove option from dropdown so user cannot see or pick it
-                                if (opt.parentElement === sel) {
-                                    sel.removeChild(opt);
+                            usedEntries.forEach(entry => {
+                                if (entry.sel !== sel) {
+                                    if (entry.value) otherUsedValues.add(entry.value);
+                                    if (entry.normText) otherUsedTexts.add(entry.normText);
                                 }
-                            } else {
-                                // Restore option at its original position if it was removed
-                                if (opt.parentElement !== sel) {
-                                    const origIdx = parseInt(opt.dataset.origIndex, 10);
-                                    let nextSibling = null;
-                                    for (let j = origIdx + 1; j < sel._tkAllOptions.length; j++) {
-                                        if (sel._tkAllOptions[j].parentElement === sel) {
-                                            nextSibling = sel._tkAllOptions[j];
-                                            break;
-                                        }
+                            });
+
+                            const currentVal = String(sel.value || '').trim();
+
+                            (sel._tkAllOptions || []).forEach(opt => {
+                                if (this.isPlaceholder(opt)) return; // Keep "Elegir..." always visible
+
+                                const optVal = String(opt.value || '').trim();
+                                const optNormText = this.normalize(opt.dataset?.origText || opt.text);
+
+                                const isSelectedHere = (optVal === currentVal && currentVal !== '' && currentVal !== '0');
+                                const isUsedElsewhere = otherUsedValues.has(optVal) || otherUsedTexts.has(optNormText);
+
+                                if (isUsedElsewhere && !isSelectedHere) {
+                                    // Physically remove option from dropdown so user cannot see or pick it
+                                    if (opt.parentElement === sel) {
+                                        sel.removeChild(opt);
                                     }
-                                    sel.insertBefore(opt, nextSibling);
+                                } else {
+                                    // Restore option at its original position if it was removed
+                                    if (opt.parentElement !== sel) {
+                                        const origIdx = parseInt(opt.dataset.origIndex, 10);
+                                        let nextSibling = null;
+                                        for (let j = origIdx + 1; j < sel._tkAllOptions.length; j++) {
+                                            const candidate = sel._tkAllOptions[j];
+                                            if (candidate && candidate.parentElement === sel) {
+                                                nextSibling = candidate;
+                                                break;
+                                            }
+                                        }
+                                        sel.insertBefore(opt, nextSibling);
+                                    }
+                                    opt.disabled = false;
+                                    opt.hidden = false;
+                                    opt.text = opt.dataset.origText;
                                 }
-                                opt.disabled = false;
-                                opt.hidden = false;
-                                opt.text = opt.dataset.origText;
-                            }
+                            });
                         });
-                    });
+                    } finally {
+                        isSyncing = false;
+                    }
                 };
 
-                // Bind events to each select
+                // Bind events to each select exactly once
                 selects.forEach(sel => {
                     if (!sel.dataset.tkMatchingBound) {
                         sel.dataset.tkMatchingBound = 'true';
@@ -1572,53 +1579,35 @@
                     }
                 });
 
-                // Run sync immediately
+                // Initial sync
                 sync();
             },
 
             restoreAll() {
-                document.querySelectorAll('select').forEach(sel => {
-                    if (sel._tkAllOptions && sel._tkAllOptions.length > 0) {
-                        sel._tkAllOptions.forEach(opt => {
-                            if (opt.parentElement !== sel) {
-                                const origIdx = parseInt(opt.dataset.origIndex, 10);
-                                let nextSibling = null;
-                                for (let j = origIdx + 1; j < sel._tkAllOptions.length; j++) {
-                                    if (sel._tkAllOptions[j].parentElement === sel) {
-                                        nextSibling = sel._tkAllOptions[j];
-                                        break;
-                                    }
+                try {
+                    document.querySelectorAll('select').forEach(sel => {
+                        if (sel._tkAllOptions && sel._tkAllOptions.length > 0) {
+                            sel._tkAllOptions.forEach(opt => {
+                                if (opt && opt.parentElement !== sel) {
+                                    sel.appendChild(opt);
                                 }
-                                sel.insertBefore(opt, nextSibling);
-                            }
-                        });
-                    }
-                });
+                            });
+                        }
+                    });
+                } catch (e) {
+                    // ignore
+                }
             },
 
             observe() {
                 const scan = () => {
                     const questions = document.querySelectorAll('.que');
-                    if (questions.length > 0) {
-                        questions.forEach(qEl => this.initQuestion(qEl));
-                    } else {
-                        this.initQuestion(document.body);
-                    }
+                    questions.forEach(qEl => this.initQuestion(qEl));
                 };
 
                 scan();
-
-                let count = 0;
-                const interval = setInterval(() => {
-                    scan();
-                    count++;
-                    if (count > 8) clearInterval(interval);
-                }, 500);
-
-                if (!this._observer && window.MutationObserver) {
-                    this._observer = new MutationObserver(() => scan());
-                    this._observer.observe(document.body, { childList: true, subtree: true });
-                }
+                setTimeout(scan, 500);
+                setTimeout(scan, 1500);
 
                 if (!window._tkRestoreBound) {
                     window._tkRestoreBound = true;

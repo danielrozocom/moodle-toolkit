@@ -762,7 +762,7 @@
                     if (!row.querySelector('.tk-badge-review-correct')) {
                         const badge = document.createElement('span');
                         badge.className = 'tk-badge-review-correct';
-                        badge.innerHTML = '💾 Guardada (correcta)';
+                        badge.innerHTML = `${UiModule.Icons.checkCircle} <span>Guardada</span>`;
                         badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:600; margin-left:8px; display:inline-flex; align-items:center; gap:4px; vertical-align:middle;';
                         label.appendChild(badge);
                     }
@@ -770,7 +770,7 @@
                     if (!row.querySelector('.tk-badge-review-incorrect')) {
                         const badge = document.createElement('span');
                         badge.className = 'tk-badge-review-incorrect';
-                        badge.innerHTML = '💾 Guardada (para tachar)';
+                        badge.innerHTML = `${UiModule.Icons.xCircle} <span>Guardada (para tachar)</span>`;
                         badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:600; margin-left:8px; display:inline-flex; align-items:center; gap:4px; vertical-align:middle;';
                         label.appendChild(badge);
                     }
@@ -787,8 +787,8 @@
                     if (!parent.querySelector('.tk-badge-review-correct')) {
                         const badge = document.createElement('span');
                         badge.className = 'tk-badge-review-correct';
-                        badge.innerHTML = '💾 Guardada';
-                        badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 5px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                        badge.innerHTML = `${UiModule.Icons.checkCircle} <span>Guardada</span>`;
+                        badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 5px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; gap:3px; vertical-align:middle;';
                         parent.appendChild(badge);
                     }
                 } else if (type === 'incorrect') {
@@ -796,8 +796,8 @@
                     if (!parent.querySelector('.tk-badge-review-incorrect')) {
                         const badge = document.createElement('span');
                         badge.className = 'tk-badge-review-incorrect';
-                        badge.innerHTML = '💾 Guardada (para tachar)';
-                        badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 5px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                        badge.innerHTML = `${UiModule.Icons.xCircle} <span>Guardada (para tachar)</span>`;
+                        badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 5px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; gap:3px; vertical-align:middle;';
                         parent.appendChild(badge);
                     }
                 }
@@ -861,8 +861,8 @@
                                 if (!sel.parentElement.querySelector('.tk-badge-correct')) {
                                     const badge = document.createElement('span');
                                     badge.className = 'tk-badge-correct';
-                                    badge.innerHTML = '✅ Prellenada';
-                                    badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                    badge.innerHTML = `${UiModule.Icons.check} <span>Prellenada</span>`;
+                                    badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; gap:3px; vertical-align:middle;';
                                     sel.parentElement.appendChild(badge);
                                 }
                                 filledCount++;
@@ -873,8 +873,8 @@
                             const wrongTarget = blank.incorrect[0];
                             const wrongOpt = Array.from(sel.options).find(o => this.matchOption(this.cleanOptionText(o), wrongTarget));
                             if (wrongOpt) {
-                                if (!wrongOpt.text.includes('❌')) {
-                                    wrongOpt.text += ' ❌ (Incorrecta en intento previo)';
+                                if (!wrongOpt.text.includes('[Incorrecta')) {
+                                    wrongOpt.text += ' [Incorrecta en intento previo]';
                                     wrongOpt.style.color = '#dc2626';
                                 }
                                 sel.style.border = '2px solid #ef4444';
@@ -883,8 +883,8 @@
                                 if (!sel.parentElement.querySelector('.tk-badge-wrong')) {
                                     const badge = document.createElement('span');
                                     badge.className = 'tk-badge-wrong';
-                                    badge.innerHTML = `❌ Intento anterior: "${wrongTarget}"`;
-                                    badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                    badge.innerHTML = `${UiModule.Icons.xCircle} <span>Intento anterior: "${wrongTarget}"</span>`;
+                                    badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; gap:3px; vertical-align:middle;';
                                     sel.parentElement.appendChild(badge);
                                 }
 
@@ -902,8 +902,8 @@
                                         if (!sel.parentElement.querySelector('.tk-badge-deduced')) {
                                             const deduceBadge = document.createElement('span');
                                             deduceBadge.className = 'tk-badge-deduced';
-                                            deduceBadge.innerHTML = `✅ <b>Prellenada (${otherOpt.text})</b> [deducida]`;
-                                            deduceBadge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                            deduceBadge.innerHTML = `${UiModule.Icons.check} <b>Prellenada (${otherOpt.text})</b> [deducida]`;
+                                            deduceBadge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; gap:3px; vertical-align:middle;';
                                             sel.parentElement.appendChild(deduceBadge);
                                         }
                                         filledCount++;
@@ -930,8 +930,8 @@
                             if (!txt.parentElement.querySelector('.tk-badge-correct')) {
                                 const badge = document.createElement('span');
                                 badge.className = 'tk-badge-correct';
-                                badge.innerHTML = '✅ Prellenada';
-                                badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                badge.innerHTML = `${UiModule.Icons.check} <span>Prellenada</span>`;
+                                badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; gap:3px; vertical-align:middle;';
                                 txt.parentElement.appendChild(badge);
                             }
                             filledCount++;
@@ -942,8 +942,8 @@
                             if (!txt.parentElement.querySelector('.tk-badge-wrong')) {
                                 const badge = document.createElement('span');
                                 badge.className = 'tk-badge-wrong';
-                                badge.innerHTML = `❌ Intento anterior: "${blank.incorrect[0]}"`;
-                                badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                badge.innerHTML = `${UiModule.Icons.xCircle} <span>Intento anterior: "${blank.incorrect[0]}"</span>`;
+                                badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; gap:3px; vertical-align:middle;';
                                 txt.parentElement.appendChild(badge);
                             }
                             struckCount++;
@@ -998,8 +998,8 @@
                             if (!dz.parentElement.querySelector(`.tk-badge-dd-${placeNum}`)) {
                                 const badge = document.createElement('span');
                                 badge.className = `tk-badge-correct tk-badge-dd-${placeNum}`;
-                                badge.innerHTML = `✅ [${targetText}]`;
-                                badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                badge.innerHTML = `${UiModule.Icons.check} <span>[${targetText}]</span>`;
+                                badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:600; margin-left:6px; display:inline-flex; align-items:center; gap:3px; vertical-align:middle;';
                                 dz.parentElement.appendChild(badge);
                             }
                             filledCount++;
@@ -1023,8 +1023,8 @@
                             if (!dz.parentElement.querySelector(`.tk-badge-dd-wrong-${placeNum}`)) {
                                 const badge = document.createElement('span');
                                 badge.className = `tk-badge-wrong tk-badge-dd-wrong-${placeNum}`;
-                                badge.innerHTML = `❌ Casilla ${placeNum}: NO va "${wrongText}"`;
-                                badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;';
+                                badge.innerHTML = `${UiModule.Icons.xCircle} <span>Casilla ${placeNum}: NO va "${wrongText}"</span>`;
+                                badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:6px; display:inline-flex; align-items:center; gap:3px; vertical-align:middle;';
                                 dz.parentElement.appendChild(badge);
                             }
                             struckCount++;
@@ -1058,7 +1058,7 @@
                 if (!row.querySelector('.tk-badge-wrong')) {
                     const badge = document.createElement('span');
                     badge.className = 'tk-badge-wrong';
-                    badge.innerHTML = '❌ <b>Incorrecta</b> (intento previo)';
+                    badge.innerHTML = `${UiModule.Icons.xCircle} <b>Incorrecta</b> (intento previo)`;
                     badge.style.cssText = 'background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:8px; display:inline-flex; align-items:center; gap:4px; text-decoration:none; vertical-align:middle;';
                     label.appendChild(badge);
                 }
@@ -1098,7 +1098,7 @@
                 if (!row.querySelector('.tk-badge-correct')) {
                     const badge = document.createElement('span');
                     badge.className = 'tk-badge-correct';
-                    badge.innerHTML = '✅ <b>Correcta</b> (prellenada)';
+                    badge.innerHTML = `${UiModule.Icons.checkCircle} <b>Correcta</b> (prellenada)`;
                     badge.style.cssText = 'background:#dcfce7; color:#15803d; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:500; margin-left:8px; display:inline-flex; align-items:center; gap:4px; vertical-align:middle;';
                     label.appendChild(badge);
                 }
@@ -1138,25 +1138,28 @@
                 const statEl = document.getElementById('tk-quiz-review-stats');
                 if (!statEl) return;
                 const stats = this.getQuizStats();
+                const icons = UiModule.Icons;
                 statEl.innerHTML = `
                     <div class="tk-card">
-                        <div style="font-weight:600; color:#0f172a; margin-bottom:2px; display:flex; align-items:center; justify-content:space-between;">
-                            <span>📋 <b>${stats.questionCount}</b> Preguntas</span>
-                            <span style="background:#e0f2fe; color:#0369a1; font-size:11px; padding:2px 7px; border-radius:10px; font-weight:600;">
+                        <div class="tk-stat-header">
+                            <span class="tk-stat-title">
+                                ${icons.fileText} <b>${stats.questionCount}</b> Preguntas
+                            </span>
+                            <span class="tk-pill">
                                 ${stats.totalItems} casillas / ítems
                             </span>
                         </div>
-                        <div style="color:#64748b; font-size:11px; line-height:1.3;">
+                        <div class="tk-stat-desc">
                             Total de preguntas y casillas analizadas en la prueba.
                         </div>
                     </div>
-                    <div style="display:flex; flex-direction:column; gap:4px; padding:0 2px;">
-                        <span style="color:#15803d; font-weight:600;">
-                            ✅ <b>${stats.correctCount}</b> casillas correctas guardadas
-                        </span>
-                        <span style="color:#b91c1c; font-weight:600;">
-                            ❌ <b>${stats.incorrectCount}</b> casillas a corregir (tachadas)
-                        </span>
+                    <div class="tk-stat-list">
+                        <div class="tk-stat-item tk-stat-correct">
+                            ${icons.checkCircle} <span><b>${stats.correctCount}</b> casillas correctas guardadas</span>
+                        </div>
+                        <div class="tk-stat-item tk-stat-incorrect">
+                            ${icons.xCircle} <span><b>${stats.incorrectCount}</b> casillas a corregir (tachadas)</span>
+                        </div>
                     </div>
                 `;
             },
@@ -1165,25 +1168,28 @@
                 const statEl = document.getElementById('tk-quiz-attempt-stats');
                 if (!statEl) return;
                 const stats = this.getQuizStats();
+                const icons = UiModule.Icons;
                 statEl.innerHTML = `
                     <div class="tk-card">
-                        <div style="font-weight:600; color:#0f172a; margin-bottom:2px; display:flex; align-items:center; justify-content:space-between;">
-                            <span>📋 <b>${stats.questionCount}</b> Preguntas</span>
-                            <span style="background:#e0f2fe; color:#0369a1; font-size:11px; padding:2px 7px; border-radius:10px; font-weight:600;">
-                                ${stats.totalItems} casillas
+                        <div class="tk-stat-header">
+                            <span class="tk-stat-title">
+                                ${icons.fileText} <b>${stats.questionCount}</b> Preguntas
+                            </span>
+                            <span class="tk-pill">
+                                ${stats.totalItems} casillas / ítems
                             </span>
                         </div>
-                        <div style="color:#64748b; font-size:11px; line-height:1.3;">
+                        <div class="tk-stat-desc">
                             Respuestas aplicadas de intentos anteriores.
                         </div>
                     </div>
-                    <div style="display:flex; flex-direction:column; gap:4px; padding:0 2px;">
-                        <span style="color:#15803d; font-weight:600;">
-                            ✅ <b>${filledCount}</b> casillas prellenadas automáticamente
-                        </span>
-                        <span style="color:#b91c1c; font-weight:600;">
-                            ❌ <b>${struckCount}</b> opciones incorrectas tachadas
-                        </span>
+                    <div class="tk-stat-list">
+                        <div class="tk-stat-item tk-stat-correct">
+                            ${icons.checkCircle} <span><b>${filledCount}</b> casillas prellenadas automáticamente</span>
+                        </div>
+                        <div class="tk-stat-item tk-stat-incorrect">
+                            ${icons.xCircle} <span><b>${struckCount}</b> opciones incorrectas tachadas</span>
+                        </div>
                     </div>
                 `;
             },
@@ -1320,7 +1326,10 @@
                         e.stopPropagation();
                         const text = this.formatQuestionForCopy(qEl);
                         navigator.clipboard.writeText(text).then(() => {
-                            copyBtn.innerHTML = `✅ <span>¡Copiada!</span>`;
+                            copyBtn.innerHTML = `
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px;"><polyline points="20 6 9 17 4 12"/></svg>
+                                <span>¡Copiada!</span>
+                            `;
                             setTimeout(() => {
                                 copyBtn.innerHTML = `
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px;"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
@@ -1388,7 +1397,10 @@
 
                     dlBtn.onclick = async (e) => {
                         e.preventDefault();
-                        dlBtn.innerHTML = `⏳ <span>Descargando...</span>`;
+                        dlBtn.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px; animation: spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                            <span>Descargando...</span>
+                        `;
                         try {
                             const response = await fetch(audioSrc, { credentials: 'include' });
                             const blob = await response.blob();
@@ -1400,7 +1412,10 @@
                             tempA.click();
                             tempA.remove();
                             setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-                            dlBtn.innerHTML = `✅ <span>¡Descargado!</span>`;
+                            dlBtn.innerHTML = `
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>
+                                <span>¡Descargado!</span>
+                            `;
                             setTimeout(() => {
                                 dlBtn.innerHTML = `
                                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1504,7 +1519,13 @@
                 minimize: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>',
                 brain: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04z"/></svg>',
                 refresh: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>',
-                trash: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
+                trash: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+                clipboard: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>',
+                checkCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',
+                xCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+                fileText: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>',
+                download: '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+                check: '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
             },
 
             injectStyles() {
@@ -1574,10 +1595,36 @@
                     #moodle-toolkit-panel.tk-minimized .tk-body { display: none; }
                     #moodle-toolkit-panel .tk-card {
                         background: #f8fafc; border: 1px solid #e2e8f0;
-                        border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;
+                        border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
                     }
-                    .tk-badge-correct { background: #dcfce7 !important; color: #15803d !important; }
-                    .tk-badge-wrong { background: #fee2e2 !important; color: #b91c1c !important; }
+                    #moodle-toolkit-panel .tk-stat-header {
+                        display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;
+                    }
+                    #moodle-toolkit-panel .tk-stat-title {
+                        font-weight: 600; color: #0f172a; font-size: 13px;
+                        display: flex; align-items: center; gap: 6px;
+                    }
+                    #moodle-toolkit-panel .tk-stat-title svg { color: #64748b; flex-shrink: 0; }
+                    #moodle-toolkit-panel .tk-stat-desc {
+                        color: #64748b; font-size: 11px; line-height: 1.35;
+                    }
+                    #moodle-toolkit-panel .tk-pill {
+                        background: #e0f2fe; color: #0369a1; font-size: 11px;
+                        padding: 2px 8px; border-radius: 9999px; font-weight: 600;
+                    }
+                    #moodle-toolkit-panel .tk-stat-list {
+                        display: flex; flex-direction: column; gap: 6px; padding: 2px 0; margin-bottom: 6px;
+                    }
+                    #moodle-toolkit-panel .tk-stat-item {
+                        display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500;
+                    }
+                    #moodle-toolkit-panel .tk-stat-item svg { flex-shrink: 0; }
+                    #moodle-toolkit-panel .tk-stat-correct { color: #15803d; }
+                    #moodle-toolkit-panel .tk-stat-correct svg { color: #16a34a; }
+                    #moodle-toolkit-panel .tk-stat-incorrect { color: #b91c1c; }
+                    #moodle-toolkit-panel .tk-stat-incorrect svg { color: #dc2626; }
+                    .tk-badge-correct { background: #dcfce7 !important; color: #15803d !important; border: 1px solid #bbf7d0; }
+                    .tk-badge-wrong { background: #fee2e2 !important; color: #b91c1c !important; border: 1px solid #fecaca; }
                     @media (prefers-color-scheme: dark) {
                         #moodle-toolkit-panel { background: #0f172a; color: #f8fafc; border-color: #334155; box-shadow: 0 10px 15px -3px rgba(0,0,0,.4); }
                         #moodle-toolkit-panel .tk-header { border-bottom-color: #334155; }
@@ -1589,14 +1636,23 @@
                         #moodle-toolkit-panel .tk-btn-secondary { background: #1e293b; color: #f8fafc; }
                         #moodle-toolkit-panel .tk-btn-secondary:hover:not(:disabled) { background: #334155; }
                         #moodle-toolkit-panel .tk-btn-outline { background: #0f172a; color: #f8fafc; border-color: #334155; }
+                        #moodle-toolkit-panel .tk-btn-outline:hover:not(:disabled) { background: #1e293b; border-color: #475569; }
                         #moodle-toolkit-panel .tk-select { background: #0f172a; color: #f8fafc; border-color: #334155; }
                         #moodle-toolkit-panel .tk-timer { background: #052e16; color: #86efac; border-color: #166534; }
                         #moodle-toolkit-panel .tk-section { border-top-color: #334155; }
                         #moodle-toolkit-panel .tk-label { color: #94a3b8; }
                         #moodle-toolkit-panel .tk-card { background: #1e293b !important; border-color: #334155 !important; }
-                        .tk-badge-correct { background: #052e16 !important; color: #86efac !important; }
-                        .tk-badge-wrong { background: #450a0a !important; color: #fca5a5 !important; }
-                        #tk-quiz-review-stats, #tk-quiz-attempt-stats, #tk-quiz-view-stats { color: #94a3b8 !important; }
+                        #moodle-toolkit-panel .tk-stat-title { color: #f8fafc !important; }
+                        #moodle-toolkit-panel .tk-stat-title svg { color: #94a3b8 !important; }
+                        #moodle-toolkit-panel .tk-stat-desc { color: #cbd5e1 !important; }
+                        #moodle-toolkit-panel .tk-pill { background: #0c4a6e !important; color: #38bdf8 !important; }
+                        #moodle-toolkit-panel .tk-stat-correct { color: #86efac !important; }
+                        #moodle-toolkit-panel .tk-stat-correct svg { color: #4ade80 !important; }
+                        #moodle-toolkit-panel .tk-stat-incorrect { color: #fca5a5 !important; }
+                        #moodle-toolkit-panel .tk-stat-incorrect svg { color: #f87171 !important; }
+                        .tk-badge-correct { background: #064e3b !important; color: #86efac !important; border-color: #059669 !important; }
+                        .tk-badge-wrong { background: #7f1d1d !important; color: #fca5a5 !important; border-color: #dc2626 !important; }
+                        #tk-quiz-review-stats, #tk-quiz-attempt-stats, #tk-quiz-view-stats { color: #cbd5e1 !important; }
                     }
                 `;
                 document.head.appendChild(style);
@@ -1638,8 +1694,8 @@
                                     ${this.Icons.refresh} Re-escanear
                                 </button>
                             </div>
-                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; margin-bottom:6px; width:100%; display:flex; align-items:center; justify-content:center; gap:4px;">
-                                📋 Copiar preguntas del examen
+                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; margin-bottom:6px; width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
+                                ${this.Icons.clipboard} Copiar preguntas del examen
                             </button>
                             <button id="btn-tk-quiz-clear" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px;">
                                 ${this.Icons.trash} Limpiar memoria
@@ -1659,8 +1715,8 @@
                                     ${this.Icons.zap} Re-aplicar Respuestas
                                 </button>
                             </div>
-                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; margin-bottom:6px; width:100%; display:flex; align-items:center; justify-content:center; gap:4px;">
-                                📋 Copiar preguntas del examen
+                            <button id="btn-tk-quiz-copy-all" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px; margin-bottom:6px; width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
+                                ${this.Icons.clipboard} Copiar preguntas del examen
                             </button>
                             <button id="btn-tk-quiz-clear" class="tk-btn tk-btn-outline" style="font-size:11px; height:28px;">
                                 ${this.Icons.trash} Limpiar memoria
@@ -1859,11 +1915,20 @@
                     const stats = QuizModule.getQuizStats();
                     const statEl = document.getElementById('tk-quiz-view-stats');
                     if (statEl) {
+                        const icons = UiModule.Icons;
                         statEl.innerHTML = `
-                            <span>📝 <b>${stats.questionCount}</b> preguntas en memoria</span><br>
-                            <span style="color:#15803d;">✅ <b>${stats.correctCount}</b> correctas</span> | 
-                            <span style="color:#b91c1c;">❌ <b>${stats.incorrectCount}</b> a tachar</span><br>
-                            <small style="color:#64748b;">Se aplicarán automáticamente al iniciar intento.</small>
+                            <div class="tk-stat-list" style="margin-bottom:6px;">
+                                <div class="tk-stat-item">
+                                    ${icons.fileText} <span><b>${stats.questionCount}</b> preguntas en memoria</span>
+                                </div>
+                                <div class="tk-stat-item tk-stat-correct">
+                                    ${icons.checkCircle} <span><b>${stats.correctCount}</b> correctas</span>
+                                </div>
+                                <div class="tk-stat-item tk-stat-incorrect">
+                                    ${icons.xCircle} <span><b>${stats.incorrectCount}</b> a tachar</span>
+                                </div>
+                            </div>
+                            <div class="tk-stat-desc">Se aplicarán automáticamente al iniciar intento.</div>
                         `;
                     }
                 }
